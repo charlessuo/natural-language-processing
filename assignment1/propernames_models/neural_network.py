@@ -42,10 +42,10 @@ class NeuralNetwork:
         train_op = optimizer.minimize(self.loss)
         
         # set up for summaries
-        loss_summary = tf.scalar_summary("loss", self.loss)
-        acc_summary = tf.scalar_summary("accuracy", self.accuracy)
-        summary_op = tf.merge_summary([loss_summary, acc_summary])
-        summary_writer = tf.summary.FileWriter('./summary', self.sess.graph)
+#        loss_summary = tf.scalar_summary("loss", self.loss)
+#        acc_summary = tf.scalar_summary("accuracy", self.accuracy)
+#        summary_op = tf.merge_summary([loss_summary, acc_summary])
+#        summary_writer = tf.summary.FileWriter('./summary', self.sess.graph)
 
         # initialize all variables
         self.sess.run(tf.global_variables_initializer())
@@ -54,10 +54,10 @@ class NeuralNetwork:
         batches_per_epoch = int((len(X) - 1) / batch_size) + 1
         step = 0
         for X_batch, Y_batch in batch_pairs:
-            _, loss, accuracy, summaries = self.sess.run(
-                [train_op, self.loss, self.accuracy, summary_op], 
+            _, loss, accuracy = self.sess.run(
+                [train_op, self.loss, self.accuracy], 
                 feed_dict={self.X: X_batch, self.Y: Y_batch, self.dropout_keep_prob: 0.5})
-            summary_writer.add_summary(summaries, step)
+#            summary_writer.add_summary(summaries, step)
             if step % batches_per_epoch == 0:
                 print('Epoch: {}, loss: {:.6f}, accuracy: {:.2f}'.format(int(step / batches_per_epoch), loss, accuracy))
             step += 1
@@ -142,19 +142,19 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 if __name__ == '__main__':
     loader = Loader('propernames')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 2), dim_used=5000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 3), dim_used=5000)
     print('Done loading data.')
 
     N, vocab_size = X_train.shape
     num_classes = np.max(Y_train) + 1
 
-    nn = NeuralNetwork(vocab_size, num_classes, (128, 128, 128))
-    train_acc = nn.train(X_train, Y_train, num_epoch=50)
+    nn = NeuralNetwork(vocab_size, num_classes, (128, 128, 128, 128, 128))
+    train_acc = nn.train(X_train, Y_train, num_epoch=40)
     print('Train Accuracy:', train_acc) # should overfit
     
     dev_acc = nn.score(X_dev, Y_dev)
     print('Dev Accuracy:', dev_acc)
 
 #    Y_pred = nn.predict(X_test)
-#    generate_submission(Y_pred, loader.class_dict, 'nn_128x5_dim20000_ngram1to7_ep40_dp05_xavier')
+#    generate_submission(Y_pred, loader.class_dict, 'nn_128x5_dim50000_ngram1to6_ep50_dp05_xavier')
 
