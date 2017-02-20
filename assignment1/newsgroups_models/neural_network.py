@@ -16,7 +16,7 @@ class NeuralNetwork:
             with tf.variable_scope('layer' + str(i + 1)):
                 W = tf.get_variable('W', [vocab_size, hidden_size], initializer=self._xavier_weight_init())
                 b = tf.get_variable('b', [hidden_size], initializer=self._xavier_weight_init())
-                self.h[i] = tf.nn.relu(tf.matmul(self.X, W) + b, name='relu')
+                self.h[i] = tf.nn.relu6(tf.matmul(self.X, W) + b, name='relu')
 
         with tf.variable_scope('dropout'):
             self.h_drop = tf.nn.dropout(self.h[-1], self.dropout_keep_prob)
@@ -34,18 +34,12 @@ class NeuralNetwork:
             num_correct = tf.equal(self.predictions, tf.argmax(self.Y, 1))
             self.accuracy = tf.reduce_mean(tf.cast(num_correct, 'float'), name='accuracy')
 
-    def train(self, X, Y, num_epoch=20, batch_size=64, summary=False):
+    def train(self, X, Y, num_epoch=20, batch_size=64):
         Y = self._onehot_encode(Y)
         batch_pairs = self._extract_batch(X, Y, num_epoch, batch_size)
 
         optimizer = tf.train.AdamOptimizer(1e-3)
         train_op = optimizer.minimize(self.loss)
-
-        # set up for summaries
-#        loss_summary = tf.scalar_summary("loss", self.loss)
-#        acc_summary = tf.scalar_summary("accuracy", self.accuracy)
-#        summary_op = tf.merge_summary([loss_summary, acc_summary])
-#        summary_writer = tf.summary.FileWriter('./summary', self.sess.graph)
         
         # initialize all variables
         self.sess.run(tf.global_variables_initializer())
@@ -57,8 +51,6 @@ class NeuralNetwork:
             _, loss, accuracy = self.sess.run(
                 [train_op, self.loss, self.accuracy], 
                 feed_dict={self.X: X_batch, self.Y: Y_batch, self.dropout_keep_prob: 0.5})
-#            if summary:
-#                summary_writer.add_summary(summaries, step)
             if step % batches_per_epoch == 0:
                 print('Epoch: {}, loss: {:.6f}, accuracy: {:.2f}'.format(int(step / batches_per_epoch), loss, accuracy))
             step += 1
@@ -143,19 +135,20 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 if __name__ == '__main__':
     loader = Loader('newsgroups')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(ngram_range=(1, 2), dim_used=5000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(ngram_range=(1, 2), dim_used=20000)
+    #X_train, Y_train, X_dev, Y_dev, X_test = loader.bow(ngram_range=(1, 1), dim_used=5000)
     print('Done loading data.')
 
     N, vocab_size = X_train.shape
     num_classes = np.max(Y_train) + 1
 
-    nn = NeuralNetwork(vocab_size, num_classes, (256, 256, 256))
-    train_acc = nn.train(X_train, Y_train, num_epoch=50)
+    nn = NeuralNetwork(vocab_size, num_classes, (128, 128, 128))
+    train_acc = nn.train(X_train, Y_train, num_epoch=30)
     print('Train Accuracy:', train_acc) # should overfit
     
     dev_acc = nn.score(X_dev, Y_dev)
     print('Dev Accuracy:', dev_acc)
 
 #    Y_pred = nn.predict(X_test)
-#    generate_submission(Y_pred, loader.class_dict, 'nn_128x3_dim60000_n1to2_stem_tfidf_ep30_dp05_xavier')
+#    generate_submission(Y_pred, loader.class_dict, 'nn_128x3_dim40000_bow_ep30_dp05_xavier')
 

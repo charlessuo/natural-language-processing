@@ -10,6 +10,7 @@ import sys
 csv.field_size_limit(sys.maxsize)
 lemmatizer = WordNetLemmatizer()
 
+
 class Loader:
     def __init__(self, dataset):
         if dataset == 'propernames':

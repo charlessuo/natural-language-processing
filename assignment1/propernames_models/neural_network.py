@@ -17,6 +17,9 @@ class NeuralNetwork:
                 W = tf.get_variable('W', [vocab_size, hidden_size], initializer=self._xavier_weight_init())
                 b = tf.get_variable('b', [hidden_size], initializer=self._xavier_weight_init())
                 self.h[i] = tf.nn.relu(tf.matmul(self.X, W) + b, name='relu')
+                tf.summary.histogram('weights', W)
+                tf.summary.histogram('biases', b)
+                tf.summary.histogram('activations', self.h[i])
 
         with tf.variable_scope('dropout'):
             self.h_drop = tf.nn.dropout(self.h[-1], self.dropout_keep_prob)
@@ -41,12 +44,6 @@ class NeuralNetwork:
         optimizer = tf.train.AdamOptimizer(1e-3)
         train_op = optimizer.minimize(self.loss)
         
-        # set up for summaries
-#        loss_summary = tf.scalar_summary("loss", self.loss)
-#        acc_summary = tf.scalar_summary("accuracy", self.accuracy)
-#        summary_op = tf.merge_summary([loss_summary, acc_summary])
-#        summary_writer = tf.summary.FileWriter('./summary', self.sess.graph)
-
         # initialize all variables
         self.sess.run(tf.global_variables_initializer())
 
@@ -57,7 +54,6 @@ class NeuralNetwork:
             _, loss, accuracy = self.sess.run(
                 [train_op, self.loss, self.accuracy], 
                 feed_dict={self.X: X_batch, self.Y: Y_batch, self.dropout_keep_prob: 0.5})
-#            summary_writer.add_summary(summaries, step)
             if step % batches_per_epoch == 0:
                 print('Epoch: {}, loss: {:.6f}, accuracy: {:.2f}'.format(int(step / batches_per_epoch), loss, accuracy))
             step += 1
@@ -142,14 +138,14 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 if __name__ == '__main__':
     loader = Loader('propernames')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 3), dim_used=5000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 6), dim_used=10000)
     print('Done loading data.')
 
     N, vocab_size = X_train.shape
     num_classes = np.max(Y_train) + 1
 
     nn = NeuralNetwork(vocab_size, num_classes, (128, 128, 128, 128, 128))
-    train_acc = nn.train(X_train, Y_train, num_epoch=40)
+    train_acc = nn.train(X_train, Y_train, num_epoch=50)
     print('Train Accuracy:', train_acc) # should overfit
     
     dev_acc = nn.score(X_dev, Y_dev)

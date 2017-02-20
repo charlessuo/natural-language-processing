@@ -16,7 +16,8 @@ stemmer = PorterStemmer()
 QUOTE_RE = re.compile(r'(writes in|writes:|wrote:|says:|said:'
                       r'|^In article|^Quoted from|^\||^>)')
 
-W2V_PATH = '/Users/howard50b/Documents/machine-learning/code/word_embedding/GoogleNews-vectors-negative300.bin'
+W2V_PATH = 'path/to/file'
+
 
 class Loader:
     def __init__(self, dataset):
@@ -26,8 +27,92 @@ class Loader:
             raise ValueError('Not a valid dataset.')
         self.vocab_x = None
         self.vocab_y = None
-        self.class_dict = None
-    
+        self.class_dict = None    
+
+    def bow(self, ngram_range=(1, 1), dim_used=None):
+        '''
+        Bag-of-word feature for newsgroups classification.
+        Args:
+            ngram_range: tuple, the range for min to max grams used.
+            dim_used: int, the number of maximum features for constructing bow model
+        Returns:
+            X_train, X_dev, X_test: ndarray of one-hot encoding with shape (#samples, len of vocabulary)
+            Y_train, Y_dev: labels in vector form with class ids (not one-hot), shape (#samples,)
+        Store:
+            vocab_x: dict, mapping from words to indices
+        '''
+        texts_train, Y_train = self._load_data('train')
+        texts_dev, Y_dev = self._load_data('dev')
+        texts_test, _ = self._load_data('test')
+        with open('stopwords.txt') as f:
+            stopwords = [word.strip() for word in f.readlines()]
+        vectorizer = CountVectorizer(max_features=dim_used, 
+                                     ngram_range=ngram_range, 
+                                     stop_words=stopwords,
+#                                     tokenizer=self._stem_tokenize, 
+                                     binary=True)
+        X_train = vectorizer.fit_transform(texts_train).toarray()
+        X_dev = vectorizer.transform(texts_dev).toarray()
+        X_test = vectorizer.transform(texts_test).toarray()
+        self.vocab_x = vectorizer.vocabulary_
+        return X_train, Y_train, X_dev, Y_dev, X_test
+
+    def tfidf(self, ngram_range=(1, 1), dim_used=None):
+        '''
+        Bag-of-word feature for newsgroups classification.
+        Args:
+            ngram_range: tuple, the range for min to max grams used.
+            dim_used: int, the number of maximum features for constructing bow model
+        Returns:
+            X_train, X_dev, X_test: ndarray of one-hot encoding with shape (#samples, len of vocabulary)
+            Y_train, Y_dev: labels in vector form with class ids (not one-hot), shape (#samples,)
+        Store:
+            vocab_x: dict, mapping from words to indices
+        '''
+        texts_train, Y_train = self._load_data('train')
+        texts_dev, Y_dev = self._load_data('dev')
+        texts_test, _ = self._load_data('test')
+        with open('stopwords.txt') as f:
+            stopwords = [word.strip() for word in f.readlines()]
+        vectorizer = TfidfVectorizer(max_features=dim_used, 
+                                     ngram_range=ngram_range, 
+#                                     tokenizer=self._stem_tokenize,
+                                     stop_words=stopwords)
+        X_train = vectorizer.fit_transform(texts_train).toarray()
+        X_dev = vectorizer.transform(texts_dev).toarray()
+        X_test = vectorizer.transform(texts_test).toarray()
+        self.vocab_x = vectorizer.vocabulary_
+        return X_train, Y_train, X_dev, Y_dev, X_test
+
+    def average_w2v(self):
+        model = gensim.models.Word2Vec.load_word2vec_format(W2V_PATH, binary=True)
+        print('Done loading word2vec model.')
+
+        texts_train, Y_train = self._load_data('train')
+        texts_dev, Y_dev = self._load_data('dev')
+        texts_test, _ = self._load_data('test')
+        with open('stopwords.txt') as f:
+            stopwords = [word.strip() for word in f.readlines()]
+
+        X_train = np.zeros((texts_train.shape[0], 300))
+        X_dev = np.zeros((texts_dev.shape[0], 300))
+        X_test = np.zeros((texts_test.shape[0], 300))
+        datasets = [X_train, X_dev, X_test]
+
+        for i, texts in enumerate([texts_train, texts_dev, texts_test]):
+            for j, text in enumerate(texts):
+                words = [w.lower() for w in word_tokenize(text) if w.isalpha()]
+                num_words = 0
+                for word in words:
+                    if word in stopwords:
+                        continue
+                    if word in model:
+                        datasets[i][j] += model[word]
+                        num_words += 1
+                datasets[i][j] /= num_words
+        
+        return X_train, Y_train, X_dev, Y_dev, X_test
+
     def bow_(self, dim_used=5000):
         '''
         Bag-of-word feature for newsgroups classification.
@@ -75,90 +160,6 @@ class Loader:
                     if word in vocab_x:
                         X[i][vocab_x[word]] = 1 # presence/absence
         return X_train[:, :dim_used], Y_train, X_dev[:, :dim_used], Y_dev, X_test[:, :dim_used]
-
-    def bow(self, ngram_range=(1, 1), dim_used=None):
-        '''
-        Bag-of-word feature for newsgroups classification.
-        Args:
-            ngram_range: tuple, the range for min to max grams used.
-            dim_used: int, the number of maximum features for constructing bow model
-        Returns:
-            X_train, X_dev, X_test: ndarray of one-hot encoding with shape (#samples, len of vocabulary)
-            Y_train, Y_dev: labels in vector form with class ids (not one-hot), shape (#samples,)
-        Store:
-            vocab_x: dict, mapping from words to indices
-        '''
-        texts_train, Y_train = self._load_data('train')
-        texts_dev, Y_dev = self._load_data('dev')
-        texts_test, _ = self._load_data('test')
-        with open('stopwords.txt') as f:
-            stopwords = [word.strip() for word in f.readlines()]
-        vectorizer = CountVectorizer(max_features=dim_used, 
-                                     ngram_range=ngram_range, 
-                                     stop_words=stopwords,
-                                     tokenizer=self._stem_tokenize, 
-                                     binary=True)
-        X_train = vectorizer.fit_transform(texts_train).toarray()
-        X_dev = vectorizer.transform(texts_dev).toarray()
-        X_test = vectorizer.transform(texts_test).toarray()
-        self.vocab_x = vectorizer.vocabulary_
-        return X_train, Y_train, X_dev, Y_dev, X_test
-
-    def tfidf(self, ngram_range=(1, 1), dim_used=None):
-        '''
-        Bag-of-word feature for newsgroups classification.
-        Args:
-            ngram_range: tuple, the range for min to max grams used.
-            dim_used: int, the number of maximum features for constructing bow model
-        Returns:
-            X_train, X_dev, X_test: ndarray of one-hot encoding with shape (#samples, len of vocabulary)
-            Y_train, Y_dev: labels in vector form with class ids (not one-hot), shape (#samples,)
-        Store:
-            vocab_x: dict, mapping from words to indices
-        '''
-        texts_train, Y_train = self._load_data('train')
-        texts_dev, Y_dev = self._load_data('dev')
-        texts_test, _ = self._load_data('test')
-        with open('stopwords.txt') as f:
-            stopwords = [word.strip() for word in f.readlines()]
-        vectorizer = TfidfVectorizer(max_features=dim_used, 
-                                     ngram_range=ngram_range, 
-                                     stop_words=stopwords, 
-                                     tokenizer=self._stem_tokenize)
-        X_train = vectorizer.fit_transform(texts_train).toarray()
-        X_dev = vectorizer.transform(texts_dev).toarray()
-        X_test = vectorizer.transform(texts_test).toarray()
-        self.vocab_x = vectorizer.vocabulary_
-        return X_train, Y_train, X_dev, Y_dev, X_test
-
-    def average_w2v(self):
-        model = gensim.models.Word2Vec.load_word2vec_format(W2V_PATH, binary=True)
-        print('Done loading word2vec model.')
-
-        texts_train, Y_train = self._load_data('train')
-        texts_dev, Y_dev = self._load_data('dev')
-        texts_test, _ = self._load_data('test')
-        with open('stopwords.txt') as f:
-            stopwords = [word.strip() for word in f.readlines()]
-
-        X_train = np.zeros((texts_train.shape[0], 300))
-        X_dev = np.zeros((texts_dev.shape[0], 300))
-        X_test = np.zeros((texts_test.shape[0], 300))
-        datasets = [X_train, X_dev, X_test]
-
-        for i, texts in enumerate([texts_train, texts_dev, texts_test]):
-            for j, text in enumerate(texts):
-                words = [w.lower() for w in word_tokenize(text) if w.isalpha()]
-                num_words = 0
-                for word in words:
-                    if word in stopwords:
-                        continue
-                    if word in model:
-                        datasets[i][j] += model[word]
-                        num_words += 1
-                datasets[i][j] /= num_words
-        
-        return X_train, Y_train, X_dev, Y_dev, X_test
     
     def _load_data(self, mode):
         '''
