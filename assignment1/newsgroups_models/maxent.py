@@ -85,11 +85,11 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 if __name__ == '__main__':
     loader = Loader('newsgroups')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(dim_used=10000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(dim_used=5000)
     print('Done loading data.')
 
     maxent = MaxEnt()
-    maxent.train(X_train, Y_train, lmda=0.1)
+    maxent.train(X_train, Y_train, lmda=1)
     print('Done training.')
 
     acc = maxent.score(X_dev, Y_dev)
