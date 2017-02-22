@@ -113,6 +113,10 @@ class Loader:
         
         return X_train, Y_train, X_dev, Y_dev, X_test
 
+    def tf_embedding(self, ngram_range=(1, 1), dim_used=None):
+
+        return params, ids
+
     def bow_(self, dim_used=5000):
         '''
         Bag-of-word feature for newsgroups classification.
