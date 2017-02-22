@@ -12,14 +12,16 @@ class NeuralNetwork:
         self.h = [None] * len(hidden_sizes)
         self.sess = tf.Session()
 
-        for i, hidden_size in enumerate(hidden_sizes):
-            with tf.variable_scope('layer' + str(i + 1)):
-                W = tf.get_variable('W', [vocab_size, hidden_size], initializer=self._xavier_weight_init())
-                b = tf.get_variable('b', [hidden_size], initializer=self._xavier_weight_init())
-                self.h[i] = tf.nn.relu(tf.matmul(self.X, W) + b, name='relu')
-                tf.summary.histogram('weights', W)
-                tf.summary.histogram('biases', b)
-                tf.summary.histogram('activations', self.h[i])
+        with tf.variable_scope('input'):
+            W = tf.get_variable('W', [vocab_size, hidden_sizes[0]], initializer=self._xavier_weight_init())
+            b = tf.get_variable('b', [hidden_sizes[0]], initializer=self._xavier_weight_init())
+            self.h[0] = tf.nn.relu(tf.matmul(self.X, W) + b, name='relu')
+
+        for i in range(1, len(hidden_sizes)):
+            with tf.variable_scope('layer' + str(i)):
+                W = tf.get_variable('W', [hidden_sizes[i - 1], hidden_sizes[i]], initializer=self._xavier_weight_init())
+                b = tf.get_variable('b', [hidden_sizes[i]], initializer=self._xavier_weight_init())
+                self.h[i] = tf.nn.relu(tf.matmul(self.h[i - 1], W) + b, name='relu')
 
         with tf.variable_scope('dropout'):
             self.h_drop = tf.nn.dropout(self.h[-1], self.dropout_keep_prob)
@@ -138,13 +140,13 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 if __name__ == '__main__':
     loader = Loader('propernames')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 6), dim_used=10000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 6), dim_used=20000)
     print('Done loading data.')
 
     N, vocab_size = X_train.shape
     num_classes = np.max(Y_train) + 1
 
-    nn = NeuralNetwork(vocab_size, num_classes, (128, 128, 128, 128, 128))
+    nn = NeuralNetwork(vocab_size, num_classes, (256, 128))
     train_acc = nn.train(X_train, Y_train, num_epoch=50)
     print('Train Accuracy:', train_acc) # should overfit
     
@@ -152,5 +154,5 @@ if __name__ == '__main__':
     print('Dev Accuracy:', dev_acc)
 
 #    Y_pred = nn.predict(X_test)
-#    generate_submission(Y_pred, loader.class_dict, 'nn_128x5_dim50000_ngram1to6_ep50_dp05_xavier')
+#    generate_submission(Y_pred, loader.class_dict, 'nn_256x2_dim30000_ngram1to6_ep50')
 
