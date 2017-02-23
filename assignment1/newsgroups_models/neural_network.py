@@ -140,14 +140,14 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 if __name__ == '__main__':
     loader = Loader('newsgroups')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(ngram_range=(1, 2), dim_used=20000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(ngram_range=(1, 1), dim_used=10000)
     #X_train, Y_train, X_dev, Y_dev, X_test = loader.bow(ngram_range=(1, 2), dim_used=10000)
     print('Done loading data.')
 
     N, vocab_size = X_train.shape
     num_classes = np.max(Y_train) + 1
 
-    nn = NeuralNetwork(vocab_size, num_classes, (256, 256))
+    nn = NeuralNetwork(vocab_size, num_classes, (128, 128, 128, 128))
     train_acc = nn.train(X_train, Y_train, num_epoch=50)
     print('Train Accuracy:', train_acc) # should overfit
     

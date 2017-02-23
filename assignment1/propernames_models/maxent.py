@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import numpy as np
 import scipy.optimize as opt
 from features import Loader
 
@@ -21,17 +22,16 @@ class MaxEnt:
             x0=self.W,
             args=(X, Y, lmda), 
             fprime=self._log_likelihood_grad, 
-            approx_grad=False)
-        print('Loss:', loss)
-        print('Optimization Info:', info)
+            approx_grad=False,
+            iprint=1)
 
     def _log_likelihood(self, para, *args):
         X, Y, lmda = args
         W = para
         W_ = W.reshape(self.num_classes, self.block_size)
-#        L = np.sum(W_[Y] * X) - np.sum(np.log(np.sum(np.exp(np.dot(X, W_.T)), axis=1))) #- 0.5 * lmda * np.sum(W_ ** 2)
         probs = self._softmax(np.dot(X, W_.T))
-        L = np.sum(np.log([probs[i][Y[i]] for i in range(self.N)])) - 0.5 * lmda * np.sum(W_ ** 2)
+        L = np.sum(np.log([probs[i][Y[i]] for i in range(self.N)])) 
+        L -= 0.5 * lmda * np.sum(W_ ** 2) # regularization
         return -L
 
     def _log_likelihood_grad(self, para, *args):

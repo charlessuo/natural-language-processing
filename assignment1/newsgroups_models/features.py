@@ -48,7 +48,7 @@ class Loader:
             stopwords = [word.strip() for word in f.readlines()]
         vectorizer = CountVectorizer(max_features=dim_used, 
                                      ngram_range=ngram_range, 
-                                     stop_words=stopwords,
+#                                     stop_words=stopwords,
 #                                     tokenizer=self._stem_tokenize, 
                                      binary=True)
         X_train = vectorizer.fit_transform(texts_train).toarray()
@@ -75,9 +75,9 @@ class Loader:
         with open('stopwords.txt') as f:
             stopwords = [word.strip() for word in f.readlines()]
         vectorizer = TfidfVectorizer(max_features=dim_used, 
-                                     ngram_range=ngram_range, 
 #                                     tokenizer=self._stem_tokenize,
-                                     stop_words=stopwords)
+#                                     stop_words=stopwords,
+                                     ngram_range=ngram_range)
         X_train = vectorizer.fit_transform(texts_train).toarray()
         X_dev = vectorizer.transform(texts_dev).toarray()
         X_test = vectorizer.transform(texts_test).toarray()
@@ -112,10 +112,6 @@ class Loader:
                 datasets[i][j] /= num_words
         
         return X_train, Y_train, X_dev, Y_dev, X_test
-
-    def tf_embedding(self, ngram_range=(1, 1), dim_used=None):
-
-        return params, ids
 
     def bow_(self, dim_used=5000):
         '''

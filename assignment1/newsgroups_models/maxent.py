@@ -23,17 +23,15 @@ class MaxEnt:
             args=(X, Y, lmda), 
             fprime=self._log_likelihood_grad, 
             approx_grad=False,
-            iprint=5)
-#        print('Loss:', loss)
-#        print('Optimization Info:', info)
+            iprint=1)
 
     def _log_likelihood(self, para, *args):
         X, Y, lmda = args
         W = para
         W_ = W.reshape(self.num_classes, self.block_size)
-#        L = np.sum(W_[Y] * X) - np.sum(np.log(np.sum(np.exp(np.dot(X, W_.T)), axis=1))) #- 0.5 * lmda * np.sum(W_ ** 2)
         probs = self._softmax(np.dot(X, W_.T))
-        L = np.sum(np.log([probs[i][Y[i]] for i in range(self.N)])) - 0.5 * lmda * np.sum(W_ ** 2)
+        L = np.sum(np.log([probs[i][Y[i]] for i in range(self.N)])) 
+        L -= 0.5 * lmda * np.sum(W_ ** 2) # regularization
         return -L
 
     def _log_likelihood_grad(self, para, *args):
@@ -85,7 +83,7 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 if __name__ == '__main__':
     loader = Loader('newsgroups')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(dim_used=5000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.tfidf(dim_used=20000)
     print('Done loading data.')
 
     maxent = MaxEnt()

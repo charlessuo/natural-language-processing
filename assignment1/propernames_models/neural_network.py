@@ -40,9 +40,13 @@ class NeuralNetwork:
             self.accuracy = tf.reduce_mean(tf.cast(num_correct, 'float'), name='accuracy')
 
     def train(self, X, Y, num_epoch=20, batch_size=64):
+        # convert label vector to one-hot label matrix
         Y = self._onehot_encode(Y)
+        
+        # extract batches for the whole training process
         batch_pairs = self._extract_batch(X, Y, num_epoch, batch_size)
 
+        # set optimizer
         optimizer = tf.train.AdamOptimizer(1e-3)
         train_op = optimizer.minimize(self.loss)
         
@@ -62,10 +66,12 @@ class NeuralNetwork:
         return accuracy
 
     def predict(self, X_test):
+        '''Predict one-hot label matrix from input data.'''
         Y_pred = self.sess.run(self.predictions, feed_dict={self.X: X_test, self.dropout_keep_prob: 1.0})
         return Y_pred
 
     def score(self, X_dev, Y_dev):
+        '''Calculate accuracy with testing data and labels.'''
         Y_dev = self._onehot_encode(Y_dev)
         loss, accuracy = self.sess.run(
             [self.loss, self.accuracy], feed_dict={self.X: X_dev, self.Y: Y_dev, self.dropout_keep_prob: 1.0})
@@ -139,20 +145,25 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 
 
 if __name__ == '__main__':
+    # load data
     loader = Loader('propernames')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 6), dim_used=20000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 5), dim_used=20000)
     print('Done loading data.')
 
+    # get shapes for MLP
     N, vocab_size = X_train.shape
     num_classes = np.max(Y_train) + 1
 
-    nn = NeuralNetwork(vocab_size, num_classes, (256, 128))
+    # construct and train MLP
+    nn = NeuralNetwork(vocab_size, num_classes, (256, 256))
     train_acc = nn.train(X_train, Y_train, num_epoch=50)
     print('Train Accuracy:', train_acc) # should overfit
     
+    # get accuracy on dev set
     dev_acc = nn.score(X_dev, Y_dev)
     print('Dev Accuracy:', dev_acc)
 
+    # generate submission file
 #    Y_pred = nn.predict(X_test)
-#    generate_submission(Y_pred, loader.class_dict, 'nn_256x2_dim30000_ngram1to6_ep50')
+#    generate_submission(Y_pred, loader.class_dict, 'nn_256x2_dim40000_ngram1to7_ep40')
 

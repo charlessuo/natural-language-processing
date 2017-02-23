@@ -1,1 +1,1 @@
-# Natural Language Processing
+# Cornell CS5740 Natural Language Processing
