@@ -101,7 +101,9 @@ class NeuralNetwork:
             '''
             m = shape[0]
             n = shape[1] if len(shape) > 1 else shape[0]
-            epsilon = np.sqrt(6) / np.sqrt(n + m)
+            #epsilon = np.sqrt(6 / (n + m)) # xavier init
+            epsilon = np.sqrt(2 / m) # he init
+            
             out = tf.random_uniform(shape, -epsilon, epsilon)
             return out
         return _xavier_initializer
@@ -147,7 +149,7 @@ def generate_submission(Y_pred, class_dict, filename='submission'):
 if __name__ == '__main__':
     # load data
     loader = Loader('propernames')
-    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 5), dim_used=20000)
+    X_train, Y_train, X_dev, Y_dev, X_test = loader.char_ngram(ngram_range=(1, 3), dim_used=20000)
     print('Done loading data.')
 
     # get shapes for MLP
@@ -165,5 +167,5 @@ if __name__ == '__main__':
 
     # generate submission file
 #    Y_pred = nn.predict(X_test)
-#    generate_submission(Y_pred, loader.class_dict, 'nn_256x2_dim40000_ngram1to7_ep40')
+#    generate_submission(Y_pred, loader.class_dict, 'nn_256x2_dim20000_ngram1to3_ep50_he')
 
