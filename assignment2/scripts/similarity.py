@@ -39,8 +39,7 @@ args = parser.parse_args()
 E, dim = read_embedding(args.emb_path)
 pairs = pd.read_csv(args.pairs_path, index_col = "id")
 
-pairs["similarity"] = [np.dot(E[w1], E[w2])
-    for w1, w2 in zip(pairs.word1, pairs.word2)]
+pairs["similarity"] = [np.dot(E[w1], E[w2]) for w1, w2 in zip(pairs.word1, pairs.word2)]
 
 del pairs["word1"], pairs["word2"]
 

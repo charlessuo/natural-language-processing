@@ -21,7 +21,7 @@ dev = pd.read_csv(args.dev_path, index_col = "id")
 
 pred.columns = ["predicted"]
 dev.columns = ["actual"]
+pred = pred.as_matrix()
+dev = dev.as_matrix()
 
-data = dev.join(pred)
-
-print("Correlation:", spearmanr(data).correlation)
+print("Correlation:", spearmanr(pred, dev).correlation)
