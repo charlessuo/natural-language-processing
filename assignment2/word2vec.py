@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 import tensorflow as tf
 import numpy as np
+import random
+import time
 from scipy import stats
 from loader import Loader
 
 
 class Word2Vec:
-    def __init__(self, vocab, rev_vocab):
+    def __init__(self, vocab, rev_vocab, batch_size=128, embed_size=100, 
+                 num_sampled=64, full_window_size=3, num_steps=24e+5):
         self.vocab = vocab
         self.rev_vocab = rev_vocab
-        self.batch_size = 128
+        self.batch_size = batch_size
         self.vocab_size = len(vocab)
-        self.embed_size = 100
-        self.num_sampled = 64
-        self.full_window_size = 5
-        self.num_steps = 22e+5
+        self.embed_size = embed_size
+        self.num_sampled = num_sampled
+        self.full_window_size = full_window_size
+        self.num_steps = num_steps
 
         self.train_x = tf.placeholder(tf.int32, shape=[self.batch_size], name='train_x')
         self.train_y = tf.placeholder(tf.int32, shape=[self.batch_size, 1], name='train_y')
@@ -74,8 +77,7 @@ class Word2Vec:
             if step % 1000 == 0:
                 print('Step {}, Average Loss: {:.6f}'.format(step, avg_loss / 1000))
                 avg_loss = 0
-            ##################################################################
-            if step % 10000 == 0:
+            if step % 50000 == 0:
                 sim = similarity.eval(session=self.sess)
                 for i in range(16):
                     valid_word = self.rev_vocab[self.valid_examples[i]]
@@ -86,7 +88,6 @@ class Word2Vec:
                         close_word = self.rev_vocab[nearest[k]]
                         log_str = "%s %s," % (log_str, close_word)
                     print(log_str)
-            ##################################################################
 
     def _extract_batch(self, data, termination):
         half_window = int(self.full_window_size / 2)
@@ -109,18 +110,16 @@ class Word2Vec:
             idx += self.idx_hop
             yield centers, contexts
 
-    def evaluate(self, word_pairs, simu_labels=None):
+    def evaluate(self, counts, word_pairs, simu_labels=None, filename=None):
         word_id_pairs = []
-        unseen = set()
+        uncommon_words = [word for word in counts.keys() if counts[word] == 1] # sample uncommon words
         for i, word_pair in enumerate(word_pairs):
+            uncommon_word1, uncommon_word2 = np.random.choice(uncommon_words, 2, replace=False)
             w1, w2 = word_pair
-            id1 = 0 if w1 not in self.vocab else self.vocab[w1]
-            id2 = 0 if w2 not in self.vocab else self.vocab[w2]
+            id1 = self.vocab[uncommon_word1] if w1 not in self.vocab else self.vocab[w1]
+            id2 = self.vocab[uncommon_word2] if w2 not in self.vocab else self.vocab[w2]
             word_id_pairs.append([id1, id2])
-            if id1 == 0 or id2 == 0:
-                unseen.add(i)
 
-        #word_id_pairs = [[self.vocab[w1], self.vocab[w2]] for w1, w2 in word_pairs]
         word_id_flat = np.array(word_id_pairs).flatten()
         words = tf.placeholder(tf.int32, shape=[len(word_id_flat)], name='words')
         embedded_words = tf.nn.embedding_lookup(self.norm_embeddings, words, name='embedded_words')
@@ -130,21 +129,14 @@ class Word2Vec:
         assert len(vec1) == len(vec2)
         simu_predicts = np.sum(vec1 * vec2, axis=1)
         
-        if simu_labels is not None:
-            print('Simularities:')
-            print(simu_predicts)
-            print('Human labeled simularities:')
-            print(simu_labels)
+        if simu_labels:
             corr = stats.spearmanr(simu_predicts, simu_labels).correlation
             print('Correlation:', corr)
         else:
-            with open('./scripts/prediction.csv', 'w') as f:
+            with open('./submissions/' + filename + '.csv', 'w') as f:
                 f.write('id,similarity\n')
                 for i, similarity in enumerate(simu_predicts):
-                    if i in unseen:
-                        f.write('{},{}\n'.format(i, 0.5))
-                    else:
-                        f.write('{},{}\n'.format(i, similarity))
+                    f.write('{},{}\n'.format(i, similarity))
 
     def export_embeddings(self):
         ids = list(range(self.vocab_size))
@@ -162,20 +154,20 @@ class Word2Vec:
 
 
 if __name__ == '__main__':
+    start = time.time()
     loader = Loader()
-    data, vocab, rev_vocab = loader.load_data('data1to20_6M')
+    data, vocab, rev_vocab, counts = loader.load_data('data1to20_6M')
+#    data, vocab, rev_vocab, counts = loader.load_data('data1m')
     dev_word_pairs, simu_labels = loader.load_eval()
     test_word_pairs = loader.load_test()
     print('Done loading data.')
     print('Data size:', len(data))
     print('Vocabulary size:', len(vocab))
-    print('Reverse vocabulary size:', len(rev_vocab))
-    print('Uncommon words:', len(vocab) - len(rev_vocab))
     w2v = Word2Vec(vocab, rev_vocab)
     w2v.train(data)
-    w2v.evaluate(dev_word_pairs, simu_labels)
-    w2v.evaluate(test_word_pairs)
+    w2v.evaluate(counts, dev_word_pairs, simu_labels=simu_labels)
+#    w2v.evaluate(counts, test_word_pairs, filename='data1to20_wnd3_24e5steps_uncomm')
+    w2v.evaluate(counts, test_word_pairs, filename='test')
+    print('Time used: {} min'.format(int((time.time() - start) / 60)))
     #w2v.export_embeddings()
-
-# for data1to20_6M, max step can reach 50e+5
 
