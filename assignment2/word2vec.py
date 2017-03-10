@@ -3,13 +3,15 @@ import tensorflow as tf
 import numpy as np
 import random
 import time
+from nltk.stem.porter import PorterStemmer
 from scipy import stats
 from loader import Loader
 
+stemmer = PorterStemmer()
 
 class Word2Vec:
     def __init__(self, vocab, rev_vocab, batch_size=128, embed_size=100, 
-                 num_sampled=64, full_window_size=3, num_steps=24e+5):
+                 num_sampled=64, full_window_size=3, num_steps=3e+5):
         self.vocab = vocab
         self.rev_vocab = rev_vocab
         self.batch_size = batch_size
@@ -110,15 +112,24 @@ class Word2Vec:
             idx += self.idx_hop
             yield centers, contexts
 
-    def evaluate(self, counts, word_pairs, simu_labels=None, filename=None):
+    def evaluate(self, counts, stems, word_pairs, simu_labels=None, filename=None):
         word_id_pairs = []
         uncommon_words = [word for word in counts.keys() if counts[word] == 1] # sample uncommon words
         for i, word_pair in enumerate(word_pairs):
-            uncommon_word1, uncommon_word2 = np.random.choice(uncommon_words, 2, replace=False)
-            w1, w2 = word_pair
-            id1 = self.vocab[uncommon_word1] if w1 not in self.vocab else self.vocab[w1]
-            id2 = self.vocab[uncommon_word2] if w2 not in self.vocab else self.vocab[w2]
-            word_id_pairs.append([id1, id2])
+            id_pair = []
+            for w, uncommon_word in zip(word_pair, np.random.choice(uncommon_words, 2, replace=False)):
+                if w in self.vocab:
+                    id_ = self.vocab[w]
+                else:
+                    stemmed_word = stemmer.stem(w)
+                    if stemmed_word in stems:
+                        id_ = self.vocab[stems[stemmed_word]]
+                        print('{}: Word "{}" found as "{}"'.format(i, w, stemmed_word))
+                    else:
+                        id_ = self.vocab[uncommon_word]
+                        print('{}: Word "{}" is NOT found'.format(i, w))
+                id_pair.append(id_)
+            word_id_pairs.append(id_pair)
 
         word_id_flat = np.array(word_id_pairs).flatten()
         words = tf.placeholder(tf.int32, shape=[len(word_id_flat)], name='words')
@@ -156,18 +167,18 @@ class Word2Vec:
 if __name__ == '__main__':
     start = time.time()
     loader = Loader()
-    data, vocab, rev_vocab, counts = loader.load_data('data1to20_6M')
-#    data, vocab, rev_vocab, counts = loader.load_data('data1m')
+    data, vocab, rev_vocab, counts, stems = loader.load_data('data1to30_9M')
+#    data, vocab, rev_vocab, counts, stems = loader.load_data('data1m')
     dev_word_pairs, simu_labels = loader.load_eval()
     test_word_pairs = loader.load_test()
     print('Done loading data.')
     print('Data size:', len(data))
     print('Vocabulary size:', len(vocab))
-    w2v = Word2Vec(vocab, rev_vocab)
+    w2v = Word2Vec(vocab, rev_vocab, full_window_size=3, num_steps=36e+5)
     w2v.train(data)
-    w2v.evaluate(counts, dev_word_pairs, simu_labels=simu_labels)
-#    w2v.evaluate(counts, test_word_pairs, filename='data1to20_wnd3_24e5steps_uncomm')
-    w2v.evaluate(counts, test_word_pairs, filename='test')
+    w2v.evaluate(counts, stems, dev_word_pairs, simu_labels=simu_labels)
+    w2v.evaluate(counts, stems, test_word_pairs, filename='data1to30_wnd3_36e5steps_stem')
+#    w2v.evaluate(counts, stems, test_word_pairs, filename='test')
     print('Time used: {} min'.format(int((time.time() - start) / 60)))
     #w2v.export_embeddings()
 
