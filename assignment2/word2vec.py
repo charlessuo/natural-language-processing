@@ -11,7 +11,7 @@ stemmer = PorterStemmer()
 
 class Word2Vec:
     def __init__(self, vocab, rev_vocab, batch_size=128, embed_size=100, 
-                 num_sampled=64, full_window_size=3, num_steps=3e+5):
+                 num_sampled=64, full_window_size=3, num_steps=None):
         self.vocab = vocab
         self.rev_vocab = rev_vocab
         self.batch_size = batch_size
@@ -20,6 +20,8 @@ class Word2Vec:
         self.num_sampled = num_sampled
         self.full_window_size = full_window_size
         self.num_steps = num_steps
+        if num_steps is None:
+            raise ValueError('Number of steps should be specified.')
 
         self.train_x = tf.placeholder(tf.int32, shape=[self.batch_size], name='train_x')
         self.train_y = tf.placeholder(tf.int32, shape=[self.batch_size, 1], name='train_y')
@@ -46,7 +48,7 @@ class Word2Vec:
                                                       labels=self.train_y,
                                                       num_sampled=self.num_sampled, 
                                                       num_classes=self.vocab_size,
-                                                      name='nce_loss'))
+                                                      name='loss'))
 
     def train(self, data):
         optimizer = tf.train.AdagradOptimizer(1.0)
@@ -103,12 +105,14 @@ class Word2Vec:
                 for i in range(self.full_window_size):
                     if i == half_window:
                         continue
-                    if i < half_window:
+                    elif i < half_window:
                         centers[i + window_idx * context_len] = data[window_idx + idx]
                         contexts[i + window_idx * context_len, 0] = data[i - half_window + window_idx + idx]
-                    if i > half_window:
+                    elif i > half_window:
                         centers[i - 1 + window_idx * context_len] = data[window_idx + idx]
                         contexts[i - 1 + window_idx * context_len, 0] = data[i - half_window + window_idx + idx]
+                    else:
+                        raise ValueError('Should not happen.')
             idx += self.idx_hop
             yield centers, contexts
 
@@ -117,6 +121,8 @@ class Word2Vec:
         uncommon_words = [word for word in counts.keys() if counts[word] == 1] # sample uncommon words
         for i, word_pair in enumerate(word_pairs):
             id_pair = []
+            unseen = 0
+            unseen_set = set()
             for w, uncommon_word in zip(word_pair, np.random.choice(uncommon_words, 2, replace=False)):
                 if w in self.vocab:
                     id_ = self.vocab[w]
@@ -128,7 +134,10 @@ class Word2Vec:
                     else:
                         id_ = self.vocab[uncommon_word]
                         print('{}: Word "{}" is NOT found'.format(i, w))
+                        unseen += 1
                 id_pair.append(id_)
+                if unseen == 2:
+                    unseen_set.add(i)
             word_id_pairs.append(id_pair)
 
         word_id_flat = np.array(word_id_pairs).flatten()
@@ -139,6 +148,9 @@ class Word2Vec:
         vec2 = wordvecs[1::2]
         assert len(vec1) == len(vec2)
         simu_predicts = np.sum(vec1 * vec2, axis=1)
+
+        for i in unseen_set:
+            simu_predicts[i] = 0.5
         
         if simu_labels:
             corr = stats.spearmanr(simu_predicts, simu_labels).correlation
@@ -147,7 +159,10 @@ class Word2Vec:
             with open('./submissions/' + filename + '.csv', 'w') as f:
                 f.write('id,similarity\n')
                 for i, similarity in enumerate(simu_predicts):
-                    f.write('{},{}\n'.format(i, similarity))
+                    if i in unseen_set:
+                        f.write('{},{}\n'.format(i, 0.5))
+                    else:
+                        f.write('{},{}\n'.format(i, similarity))
 
     def export_embeddings(self):
         ids = list(range(self.vocab_size))
@@ -174,10 +189,10 @@ if __name__ == '__main__':
     print('Done loading data.')
     print('Data size:', len(data))
     print('Vocabulary size:', len(vocab))
-    w2v = Word2Vec(vocab, rev_vocab, full_window_size=3, num_steps=36e+5)
+    w2v = Word2Vec(vocab, rev_vocab, embed_size=50, full_window_size=5, num_steps=72e+5)
     w2v.train(data)
     w2v.evaluate(counts, stems, dev_word_pairs, simu_labels=simu_labels)
-    w2v.evaluate(counts, stems, test_word_pairs, filename='data1to30_wnd3_36e5steps_stem')
+    w2v.evaluate(counts, stems, test_word_pairs, filename='data1to30_wnd5_72e5steps_embed50_stem+u')
 #    w2v.evaluate(counts, stems, test_word_pairs, filename='test')
     print('Time used: {} min'.format(int((time.time() - start) / 60)))
     #w2v.export_embeddings()
