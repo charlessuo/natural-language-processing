@@ -63,6 +63,4 @@ if __name__ == '__main__':
     text, vocab, rev_vocab, counts, stems = loader.load_data('data1m')
     print('Data size:', len(text))
     print('Vocabulary size:', len(vocab))
-#    word_pairs, sim_lables = loader.load_eval()
-#    word_pairs = loader.load_test()
 
