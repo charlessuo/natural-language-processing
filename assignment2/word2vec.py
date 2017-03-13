@@ -42,13 +42,13 @@ class Word2Vec:
             self.b = tf.Variable(tf.zeros([self.vocab_size]), 'b')
 
             # different losses: sampled_softmax_loss, nce_loss
-            self.loss = tf.reduce_mean(tf.nn.nce_loss(weights=self.W, 
-                                                      biases=self.b, 
-                                                      inputs=self.embedded_x,
-                                                      labels=self.train_y,
-                                                      num_sampled=self.num_sampled, 
-                                                      num_classes=self.vocab_size,
-                                                      name='loss'))
+            self.loss = tf.reduce_mean(tf.nn.sampled_softmax_loss(weights=self.W, 
+                                                                  biases=self.b, 
+                                                                  inputs=self.embedded_x,
+                                                                  labels=self.train_y,
+                                                                  num_sampled=self.num_sampled, 
+                                                                  num_classes=self.vocab_size,
+                                                                  name='loss'))
 
     def train(self, data):
         optimizer = tf.train.AdagradOptimizer(1.0)
@@ -121,8 +121,6 @@ class Word2Vec:
         uncommon_words = [word for word in counts.keys() if counts[word] == 1] # sample uncommon words
         for i, word_pair in enumerate(word_pairs):
             id_pair = []
-            unseen = 0
-            unseen_set = set()
             for w, uncommon_word in zip(word_pair, np.random.choice(uncommon_words, 2, replace=False)):
                 if w in self.vocab:
                     id_ = self.vocab[w]
@@ -134,10 +132,8 @@ class Word2Vec:
                     else:
                         id_ = self.vocab[uncommon_word]
                         print('{}: Word "{}" is NOT found'.format(i, w))
-                        unseen += 1
+                        unseen_set.add(i)
                 id_pair.append(id_)
-                if unseen == 2:
-                    unseen_set.add(i)
             word_id_pairs.append(id_pair)
 
         word_id_flat = np.array(word_id_pairs).flatten()
@@ -149,9 +145,6 @@ class Word2Vec:
         assert len(vec1) == len(vec2)
         simu_predicts = np.sum(vec1 * vec2, axis=1)
 
-        for i in unseen_set:
-            simu_predicts[i] = 0.5
-        
         if simu_labels:
             corr = stats.spearmanr(simu_predicts, simu_labels).correlation
             print('Correlation:', corr)
@@ -159,10 +152,7 @@ class Word2Vec:
             with open('./submissions/' + filename + '.csv', 'w') as f:
                 f.write('id,similarity\n')
                 for i, similarity in enumerate(simu_predicts):
-                    if i in unseen_set:
-                        f.write('{},{}\n'.format(i, 0.5))
-                    else:
-                        f.write('{},{}\n'.format(i, similarity))
+                    f.write('{},{}\n'.format(i, similarity))
 
     def export_embeddings(self):
         ids = list(range(self.vocab_size))
@@ -182,18 +172,15 @@ class Word2Vec:
 if __name__ == '__main__':
     start = time.time()
     loader = Loader()
-    data, vocab, rev_vocab, counts, stems = loader.load_data('data1to30_9M')
-#    data, vocab, rev_vocab, counts, stems = loader.load_data('data1m')
+    data, vocab, rev_vocab, counts, stems = loader.load_data('data3m')
     dev_word_pairs, simu_labels = loader.load_eval()
     test_word_pairs = loader.load_test()
     print('Done loading data.')
     print('Data size:', len(data))
     print('Vocabulary size:', len(vocab))
-    w2v = Word2Vec(vocab, rev_vocab, embed_size=50, full_window_size=5, num_steps=72e+5)
+    w2v = Word2Vec(vocab, rev_vocab, embed_size=50, full_window_size=3, num_steps=10e+5)
     w2v.train(data)
     w2v.evaluate(counts, stems, dev_word_pairs, simu_labels=simu_labels)
-    w2v.evaluate(counts, stems, test_word_pairs, filename='data1to30_wnd5_72e5steps_embed50_stem+u')
 #    w2v.evaluate(counts, stems, test_word_pairs, filename='test')
     print('Time used: {} min'.format(int((time.time() - start) / 60)))
-    #w2v.export_embeddings()
 

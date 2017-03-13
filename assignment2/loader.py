@@ -1,9 +1,7 @@
 import numpy as np
-from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.stem.porter import PorterStemmer
-import string
+from collections import Counter
 
-lemmatizer = WordNetLemmatizer()
 stemmer = PorterStemmer()
 
 
@@ -15,27 +13,27 @@ class Loader:
         self.test_x_path = './scripts/similarity/test_x.csv'
 
     def load_data(self, dataset):
-        text = []
+        text_word = []
+        text_id = []
         vocab = {}
         rev_vocab = {}
-        counts = {}
         stems = {}
-        idx = 0
+        # go through the whole data
         with open(self.train_path + dataset, 'r') as f:
             for line in f:
                 line = line.split()
                 for word in line:
-                    if word not in vocab:
-                        vocab[word] = idx
-                        rev_vocab[idx] = word
-                        text.append(idx)
-                        counts[word] = 1
-                        idx += 1
-                        stems[stemmer.stem(word)] = word
-                    else:
-                        text.append(vocab[word])
-                        counts[word] += 1
-        return text, vocab, rev_vocab, counts, stems
+                    text_word.append(word)
+        # build vocabulary starting from the lowest index/most common word
+        for i, pair in enumerate(Counter(text_word).most_common()):
+            word, _ = pair
+            vocab[word] = i
+            rev_vocab[i] = word
+            stems[stemmer.stem(word)] = word # stemmed word to word mapping
+        for word in text_word:
+            text_id.append(vocab[word])
+        counts = dict(Counter(text_word).most_common())
+        return text_id, vocab, rev_vocab, counts, stems
 
     def load_eval(self):
         word_pairs = []
@@ -62,7 +60,7 @@ class Loader:
 
 if __name__ == '__main__':
     loader = Loader()
-    text, vocab, rev_vocab, counts, stems = loader.load_data('data1to30_9M')
+    text, vocab, rev_vocab, counts, stems = loader.load_data('data1m')
     print('Data size:', len(text))
     print('Vocabulary size:', len(vocab))
 #    word_pairs, sim_lables = loader.load_eval()
