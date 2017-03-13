@@ -1,9 +1,9 @@
 # NLP Assignment 2
 
-Run:  
+##Run:  
     python3 word2vec.py  
   
-Generate files:  
+##Generated files:  
     embeddings.txt, the whole embedding lookup table  
     submission.csv, correlation results for test set  
 
