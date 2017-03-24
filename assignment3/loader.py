@@ -4,26 +4,37 @@ import csv
 
 class Loader:
     def __init__(self):
-        self.train_x_path = './data/train_x.csv'
-        self.train_y_path = './data/train_y.csv'
+        self.data_path = './data/{}_x.csv'
+        self.label_path = './data/{}_y.csv'
+        self.word_to_id = None
+        self.class_to_id = None
+        self.id_to_word = None
+        self.id_to_class = None
+        self.max_len = None
 
     def load(self, mode):
         if mode == 'train':
-            sentences, labels, max_len = self._load_sentences(self.train_x_path, self.train_y_path)
-            counts = self._build_count_dict(sentences)
-            word_to_id, id_to_word, class_to_id, id_to_class = self._build_vocabs(counts, labels)
-            train_x, train_y = self._build_padded_data(sentences, labels, max_len, word_to_id, class_to_id) 
-            return train_x, train_y, max_len, id_to_word, id_to_class
+            return self._load_data(mode)
         elif mode == 'dev':
-            pass
+            return self._load_data(mode) # need to use train vocab
         elif mode == 'test':
             pass
+        else:
+            raise NotImplementedError('Mode not supported.')
 
-    def _load_sentences(self, input_path, label_path):
+    def _load_data(self, mode):
+        sentences, labels = self._build_raw_sentences(mode)
+        if mode == 'train':
+            counts = self._build_count_dict(sentences)
+            self._build_vocabs(counts, labels)
+        x, y = self._build_padded_data(mode, sentences, labels)
+        return x, y
+
+    def _build_raw_sentences(self, mode):
         sentences = []
         labels = []
         max_len = 0
-        with open(input_path) as f_input, open(label_path) as f_label:
+        with open(self.data_path.format(mode)) as f_input, open(self.label_path.format(mode)) as f_label:
             next(f_input)
             next(f_label)
             sentence = []
@@ -32,6 +43,8 @@ class Loader:
                 word = input_line[1]
                 tag = label_line[1]
                 if tag == '.':
+                    if not sentence:
+                        continue
                     max_len = max(max_len, len(sentence))
                     sentences.append(sentence)
                     labels.append(tags)
@@ -40,7 +53,9 @@ class Loader:
                 else:
                     sentence.append(word)
                     tags.append(tag)
-        return sentences, labels, max_len
+        if not self.max_len:
+            self.max_len = max_len
+        return sentences, labels
 
     def _build_count_dict(self, sentences):
         counts = {}
@@ -63,6 +78,8 @@ class Loader:
         id_to_word[0] = '<PAD>'
         id_to_word[idx] = '<UNK>'
         word_to_id = {v: k for k, v in id_to_word.items()}
+        self.word_to_id = word_to_id
+        self.id_to_word = id_to_word
         
         # build class-id mapping
         class_to_id = {}
@@ -74,25 +91,31 @@ class Loader:
                     idx += 1
         class_to_id['<PAD>'] = 0
         id_to_class = {v: k for k, v in class_to_id.items()}
+        self.class_to_id = class_to_id
+        self.id_to_class = id_to_class
 
-        return word_to_id, id_to_word, class_to_id, id_to_class
-
-    def _build_padded_data(self, sentences, labels_, max_len, word_to_id, class_to_id):
-        inputs = np.zeros((len(sentences), max_len)).astype(int)
+    def _build_padded_data(self, mode, sentences, labels_):
+        unk = 0
+        inputs = np.zeros((len(sentences), self.max_len)).astype(int)
         labels = np.zeros(inputs.shape).astype(int)
         for i, sentence in enumerate(sentences):
             for j, word in enumerate(sentence):
-                inputs[i, j] = word_to_id[word]
+                if word in self.word_to_id:
+                    inputs[i, j] = self.word_to_id[word]
+                else:
+                    unk += 1
+                    inputs[i, j] = self.word_to_id['<UNK>']
+        print('Mode: {}, number of <UNK>: {}'.format(mode, unk))
 
         for i, sentence_tags in enumerate(labels_):
             for j, tag in enumerate(sentence_tags):
-                labels[i, j] = class_to_id[tag]
+                labels[i, j] = self.class_to_id[tag]
         return inputs, labels
 
 
 if __name__ == '__main__':
     loader = Loader()
-    train_x, train_y, max_len, id_to_word, id_to_class = loader.load('train')
-    print(train_x[:5]) 
-    print(train_y[:5])
+    train_x, train_y = loader.load('train')
+    dev_x, dev_y = loader.load('dev')
+    print(len(loader.word_to_id))
 
