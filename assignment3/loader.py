@@ -16,9 +16,9 @@ class Loader:
         if mode == 'train':
             return self._load_data(mode)
         elif mode == 'dev':
-            return self._load_data(mode) # need to use train vocab
+            return self._load_data(mode)
         elif mode == 'test':
-            pass
+            return self._load_data(mode)
         else:
             raise NotImplementedError('Mode not supported.')
 
@@ -34,25 +34,40 @@ class Loader:
         sentences = []
         labels = []
         max_len = 0
-        with open(self.data_path.format(mode)) as f_input, open(self.label_path.format(mode)) as f_label:
-            next(f_input)
-            next(f_label)
-            sentence = []
-            tags = []
-            for input_line, label_line in zip(csv.reader(f_input), csv.reader(f_label)):
-                word = input_line[1]
-                tag = label_line[1]
-                if tag == '.':
-                    if not sentence:
-                        continue
-                    max_len = max(max_len, len(sentence))
-                    sentences.append(sentence)
-                    labels.append(tags)
-                    sentence = []
-                    tags = []
-                else:
-                    sentence.append(word)
-                    tags.append(tag)
+        if mode == 'train' or mode == 'dev':
+            with open(self.data_path.format(mode)) as f_input, open(self.label_path.format(mode)) as f_label:
+                next(f_input)
+                next(f_label)
+                sentence = []
+                tags = []
+                for input_line, label_line in zip(csv.reader(f_input), csv.reader(f_label)):
+                    word = input_line[1]
+                    tag = label_line[1]
+                    if word == '.' or word == '?':
+                        if not sentence:
+                            continue
+                        max_len = max(max_len, len(sentence))
+                        sentences.append(sentence)
+                        labels.append(tags)
+                        sentence = []
+                        tags = []
+                    else:
+                        sentence.append(word)
+                        tags.append(tag)
+        elif mode == 'test':
+            with open(self.data_path.format(mode)) as f:
+                next(f)
+                sentence = []
+                for input_line in csv.reader(f):
+                    word = input_line[1]
+                    if word == '.' or word == '?':
+                        if not sentence:
+                            continue
+                        max_len = max(max_len, len(sentence))
+                        sentences.append(sentence)
+                        sentence = []
+                    else:
+                        sentence.append(word)
         if not self.max_len:
             self.max_len = max_len
         return sentences, labels
@@ -107,6 +122,9 @@ class Loader:
                     inputs[i, j] = self.word_to_id['<UNK>']
         print('Mode: {}, number of <UNK>: {}'.format(mode, unk))
 
+        if mode == 'test':
+            return inputs, None
+
         for i, sentence_tags in enumerate(labels_):
             for j, tag in enumerate(sentence_tags):
                 labels[i, j] = self.class_to_id[tag]
@@ -117,5 +135,6 @@ if __name__ == '__main__':
     loader = Loader()
     train_x, train_y = loader.load('train')
     dev_x, dev_y = loader.load('dev')
-    print(len(loader.word_to_id))
+    test_x, _ = loader.load('test')
+    print(loader.max_len)
 
