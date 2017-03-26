@@ -12,18 +12,9 @@ class Loader:
         self.id_to_class = None
         self.max_len = None
 
-    def load(self, mode):
-        if mode == 'train':
-            return self._load_data(mode)
-        elif mode == 'dev':
-            return self._load_data(mode)
-        elif mode == 'test':
-            return self._load_data(mode)
-        else:
-            raise NotImplementedError('Mode not supported.')
-
-    def _load_data(self, mode):
+    def load_data(self, mode):
         sentences, labels = self._build_raw_sentences(mode)
+        # only build vocabulary with training data
         if mode == 'train':
             counts = self._build_count_dict(sentences)
             self._build_vocabs(counts, labels)
@@ -43,33 +34,26 @@ class Loader:
                 for input_line, label_line in zip(csv.reader(f_input), csv.reader(f_label)):
                     word = input_line[1]
                     tag = label_line[1]
+                    sentence.append(word)
+                    tags.append(tag)
                     if word == '.' or word == '?':
-                        if not sentence:
-                            continue
                         max_len = max(max_len, len(sentence))
                         sentences.append(sentence)
                         labels.append(tags)
                         sentence = []
                         tags = []
-                    else:
-                        sentence.append(word)
-                        tags.append(tag)
+            if mode == 'train':
+                self.max_len = max_len
         elif mode == 'test':
             with open(self.data_path.format(mode)) as f:
                 next(f)
-                sentence = []
+                sentence = []; count = 0
                 for input_line in csv.reader(f):
                     word = input_line[1]
+                    sentence.append(word)
                     if word == '.' or word == '?':
-                        if not sentence:
-                            continue
-                        max_len = max(max_len, len(sentence))
                         sentences.append(sentence)
                         sentence = []
-                    else:
-                        sentence.append(word)
-        if not self.max_len:
-            self.max_len = max_len
         return sentences, labels
 
     def _build_count_dict(self, sentences):
@@ -122,6 +106,7 @@ class Loader:
                     inputs[i, j] = self.word_to_id['<UNK>']
         print('Mode: {}, number of <UNK>: {}'.format(mode, unk))
 
+        # test mode only has inputs
         if mode == 'test':
             return inputs, None
 
@@ -133,8 +118,15 @@ class Loader:
 
 if __name__ == '__main__':
     loader = Loader()
-    train_x, train_y = loader.load('train')
-    dev_x, dev_y = loader.load('dev')
-    test_x, _ = loader.load('test')
-    print(loader.max_len)
+    train_x, train_y = loader.load_data('train')
+    dev_x, dev_y = loader.load_data('dev')
+    test_x, _ = loader.load_data('test')
+    print('Max length in training data:', loader.max_len)
+    print('Train tokens:', np.sum(train_x > 0))
+    print('Train sentences:', len(train_x))
+    print('Dev tokens:', np.sum(dev_x > 0))
+    print('Dev sentences:', len(dev_x))
+    print('Test tokens:', np.sum(test_x > 0))
+    print('Test sentences:', len(test_x))
+
 

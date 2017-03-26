@@ -4,12 +4,12 @@ import numpy as np
 import logging
 from loader import Loader
 
-FILENAME = 'test'
+FILENAME = 'sample'
 logging.basicConfig(filename='./log/{}.log'.format(FILENAME), level=logging.DEBUG)
 
 
 class RNN:
-    def __init__(self, vocab_size, num_classes, sentence_len, embed_size=128, cell_size=128, num_layers=1):
+    def __init__(self, vocab_size, num_classes, sentence_len, embed_size, cell_size, num_layers):
         self.sess = tf.Session()
         self.inputs = tf.placeholder(tf.int32, [None, sentence_len], name='inputs')
         self.labels = tf.placeholder(tf.int32, [None, sentence_len], name='labels')
@@ -132,19 +132,23 @@ class RNN:
 
 if __name__ == '__main__':
     loader = Loader()
-    train_x, train_y = loader.load('train')
-    dev_x, dev_y = loader.load('dev')
-    test_x, _ = loader.load('test')
+    train_x, train_y = loader.load_data('train')
+    dev_x, dev_y = loader.load_data('dev')
+    test_x, _ = loader.load_data('test')
 
     id_to_word = loader.id_to_word
     id_to_class = loader.id_to_class
     max_len = loader.max_len
-
-    rnn = RNN(len(id_to_word), len(id_to_class), max_len, embed_size=128, cell_size=256, num_layers=2)
-    rnn.train(train_x, train_y, num_epoch=5, batch_size=64)
+    rnn = RNN(vocab_size=len(id_to_word), 
+              num_classes=len(id_to_class), 
+              sentence_len=max_len, 
+              embed_size=64, 
+              cell_size=64, 
+              num_layers=1)
+    rnn.train(train_x, train_y, num_epoch=1, batch_size=64)
     dev_accuracy = rnn.calculate_accuracy(dev_x, dev_y)
     print('Dev accuracy:', dev_accuracy)
-    logging.debug('Dev accuracy:', dev_accuracy)
+    logging.debug('Dev accuracy: {}'.format(dev_accuracy))
 
     test_preds = rnn.predict(test_x)
     rnn.generate_submission(test_preds, test_x, id_to_class, filename=FILENAME)
