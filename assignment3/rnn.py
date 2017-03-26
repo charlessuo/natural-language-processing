@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 import tensorflow as tf
 import numpy as np
+import logging
 from loader import Loader
+
+FILENAME = 'test'
+logging.basicConfig(filename='./log/{}.log'.format(FILENAME), level=logging.DEBUG)
 
 
 class RNN:
@@ -71,10 +75,11 @@ class RNN:
                                     feed_dict={self.inputs: batch_x, self.labels: batch_y})
             acc = self.calculate_accuracy(batch_x, batch_y)
             if step % 10 == 0:
-                print('Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.2f}'.format(int(step / batches_per_epoch), 
-                                                                                   step,
-                                                                                   loss, 
-                                                                                   acc))
+                print('Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.2f}'.format(
+                      int(step / batches_per_epoch), step, loss, acc))
+                logging.debug('Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.2f}'.format(
+                              int(step / batches_per_epoch), step, loss, acc))
+
                 print('Prediction for the first row in batch:')
                 print(self.sess.run(self.predictions, feed_dict={self.inputs: batch_x[:1, :], self.labels: batch_y[:1, :]}))
                 print('Label for the first row in batch:')
@@ -139,7 +144,8 @@ if __name__ == '__main__':
     rnn.train(train_x, train_y, num_epoch=5, batch_size=64)
     dev_accuracy = rnn.calculate_accuracy(dev_x, dev_y)
     print('Dev accuracy:', dev_accuracy)
+    logging.debug('Dev accuracy:', dev_accuracy)
 
     test_preds = rnn.predict(test_x)
-    rnn.generate_submission(test_preds, test_x, id_to_class, filename='test')
+    rnn.generate_submission(test_preds, test_x, id_to_class, filename=FILENAME)
 
