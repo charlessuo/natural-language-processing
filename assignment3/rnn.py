@@ -139,6 +139,7 @@ if __name__ == '__main__':
     id_to_word = loader.id_to_word
     id_to_class = loader.id_to_class
     max_len = loader.max_len
+
     rnn = RNN(vocab_size=len(id_to_word), 
               num_classes=len(id_to_class), 
               sentence_len=max_len, 
