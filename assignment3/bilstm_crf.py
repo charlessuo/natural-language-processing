@@ -4,7 +4,7 @@ import numpy as np
 import logging
 from loader import Loader
 
-FILENAME = 'sample'
+FILENAME = 'sample-crf'
 logging.basicConfig(filename='./log/{}.log'.format(FILENAME), level=logging.DEBUG)
 
 
@@ -31,33 +31,19 @@ class RNN:
             self.rnn_output = tf.concat(2, outputs, name='rnn_output')
             self.rnn_outputs_flat = tf.reshape(self.rnn_output, shape=[-1, 2 * cell_size]) # (N * sentence_len, 2 * cell_size)
 
-#            outputs, states = tf.nn.dynamic_rnn(cell,
-#                                                inputs=self.embedded_x,
-#                                                sequence_length=self.seq_len, 
-#                                                dtype=tf.float32)
-#            self.rnn_outputs_flat = tf.reshape(outputs, shape=[-1, cell_size])
-
         with tf.name_scope('output-layer'):
-#            W = tf.Variable(tf.truncated_normal([cell_size, num_classes], stddev=1.0 / np.sqrt(num_classes)), name='W')
             W = tf.Variable(tf.truncated_normal([2 * cell_size, num_classes], stddev=1.0 / np.sqrt(num_classes)), name='W')
             b = tf.Variable(tf.zeros([num_classes]), name='b')
 
             self.logits_flat = tf.matmul(self.rnn_outputs_flat, W) + b # (N * sentence_len, num_classes)
-            probs_flat = tf.nn.softmax(self.logits_flat)    
-            self.probs = tf.reshape(probs_flat, [-1, sentence_len, num_classes])
-            self.predictions = tf.argmax(self.probs, 2, name='predictions')
-            pred_mask = tf.sign(self.inputs) # (N, sentence_len)
-            self.predictions = tf.cast(self.predictions, tf.int32)
-            self.predictions *= pred_mask # (N, sentence_len)
+
+            self.logits = tf.reshape(self.logits_flat, [-1, sentence_len, num_classes])
+            log_likelihood, self.trans_params = tf.contrib.crf.crf_log_likelihood(self.logits, self.labels, self.seq_len)
 
         with tf.name_scope('loss'):
-            labels_flat = tf.reshape(self.labels, shape=[-1]) # (N * sentence_len,)
-            unmasked_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits_flat, labels_flat)
-            mask = tf.sign(tf.cast(labels_flat, tf.float32))
-            masked_loss = tf.reshape(unmasked_loss * mask, shape=[-1, sentence_len])
-            self.loss = tf.reduce_mean(tf.reduce_sum(masked_loss, axis=1) / tf.cast(self.seq_len, tf.float32), name='loss')
+            self.loss = tf.reduce_mean(-log_likelihood)
         
-    def train(self, train_x, train_y, num_epoch=5, batch_size=32):
+    def train(self, train_x, train_y, num_epoch=3, batch_size=64):
         batch_pairs = self._extract_batch(train_x, train_y, num_epoch, batch_size, shuffle=True)
 
         optimizer = tf.train.AdamOptimizer(0.01)
@@ -80,7 +66,7 @@ class RNN:
                               int(step / batches_per_epoch), step, loss, acc))
 
                 print('Prediction for the first row in batch:')
-                print(self.sess.run(self.predictions, feed_dict={self.inputs: batch_x[:1, :], self.labels: batch_y[:1, :]}))
+                print(self.predict(batch_x[:1, :]))
                 print('Label for the first row in batch:')
                 print(self.sess.run(self.labels, feed_dict={self.labels: batch_y[:1, :]}))
             step += 1
@@ -105,17 +91,28 @@ class RNN:
                 yield batch_x, batch_y
 
     def predict(self, x):
-        preds = self.sess.run(self.predictions, feed_dict={self.inputs: x})
-        return preds
+        logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
+                                                       feed_dict={self.inputs: x})
+        N, sentence_len, _ = logits.shape
+        preds = np.zeros((N, sentence_len))
+        for i, logit_, length in zip(range(N), logits, seq_len):
+            # remove padding from the score and tag sequences
+            logit_ = logit_[:length]
+            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
+            preds[i, :length] = np.array(viterbi_seq)
+        return preds.astype(int)
 
     def calculate_accuracy(self, x, y):
-        predictions = self.sess.run(self.predictions, feed_dict={self.inputs: x})
-        seq_len = self.sess.run(self.seq_len, feed_dict={self.inputs: x})
+        logits, labels, seq_len, trans_params = self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
+                                                              feed_dict={self.inputs: x, self.labels: y})
+
         num_correct = 0
-        for i in range(len(predictions)):
-            for t in range(seq_len[i]):
-                if predictions[i, t] == y[i, t]:
-                    num_correct += 1
+        for logit_, y_, length in zip(logits, labels, seq_len):
+            # remove padding from the score and tag sequences
+            logit_ = logit_[:length]
+            y_ = y_[:length]
+            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
+            num_correct += np.sum(np.equal(viterbi_seq, y_))
         return num_correct / np.sum(seq_len)
 
     def generate_submission(self, test_preds, test_x, id_to_class, filename='submission'):
@@ -145,7 +142,7 @@ if __name__ == '__main__':
               embed_size=64, 
               cell_size=64, 
               num_layers=1)
-    rnn.train(train_x, train_y, num_epoch=1, batch_size=64)
+    rnn.train(train_x[:3200], train_y[:3200], num_epoch=1, batch_size=64)
     dev_accuracy = rnn.calculate_accuracy(dev_x, dev_y)
     print('Dev accuracy:', dev_accuracy)
     logging.debug('Dev accuracy: {}'.format(dev_accuracy))
