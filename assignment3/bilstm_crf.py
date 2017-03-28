@@ -2,7 +2,7 @@
 import tensorflow as tf
 import numpy as np
 import logging
-from loader import Loader
+from rnn_loader import Loader
 
 FILENAME = 'sample-crf'
 logging.basicConfig(filename='./log/{}.log'.format(FILENAME), level=logging.DEBUG)
@@ -92,7 +92,7 @@ class RNN:
 
     def predict(self, x):
         logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
-                                                       feed_dict={self.inputs: x})
+                                                      feed_dict={self.inputs: x})
         N, sentence_len, _ = logits.shape
         preds = np.zeros((N, sentence_len))
         for i, logit_, length in zip(range(N), logits, seq_len):

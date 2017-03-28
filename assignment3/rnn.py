@@ -2,7 +2,7 @@
 import tensorflow as tf
 import numpy as np
 import logging
-from loader import Loader
+from rnn_loader import Loader
 
 FILENAME = 'sample'
 logging.basicConfig(filename='./log/{}.log'.format(FILENAME), level=logging.DEBUG)
