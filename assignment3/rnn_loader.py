@@ -47,7 +47,7 @@ class Loader:
         elif mode == 'test':
             with open(self.data_path.format(mode)) as f:
                 next(f)
-                sentence = []; count = 0
+                sentence = []
                 for input_line in csv.reader(f):
                     word = input_line[1]
                     sentence.append(word)
