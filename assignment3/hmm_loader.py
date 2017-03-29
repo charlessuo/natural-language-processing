@@ -14,7 +14,7 @@ class Loader:
         sentences, labels = self._build_raw_sentences(mode)
         if mode == 'train':
             counts = self._build_count_dict(sentences)
-            self.common_set, self.rare_set = self._build_vocab(counts)
+            self.common_set, self.rare_set = self._build_buckets(counts)
         sentences = self._build_data(sentences, mode)
         return sentences, labels
 
@@ -35,7 +35,7 @@ class Loader:
                     tags.append(tag)
                     if word == '.' or word == '?':
                         sentences.append(sentence + [None])
-                        labels.append(tags + ['STOP'])
+                        labels.append(tags + ['<STOP>'])
                         sentence = ['*'] * (ngram - 1)
                         tags = [None] * (ngram - 1)
         elif mode == 'test':
@@ -62,14 +62,22 @@ class Loader:
                     counts[word] += 1
         return counts
 
-    def _build_vocab(self, counts):
+    def _build_buckets(self, counts):
+        '''
+        Build 3 buckets (sets) for common/rare/unseen words.
+        Args:
+            counts: dict, word-count mapping, words are all raw strings
+        Returns:
+            common_set: set, collection of words with count >= 5
+            rare_set: set, collection of word suffixes with word 2 < count < 5
+        '''
         common_set = set()
         rare_set = set()
         for word, count in counts.items():
-            if count < 3:
-                rare_set.add(word[-2:])
-            else:
+            if count >= 5:
                 common_set.add(word)
+            if 2 < count < 5:
+                rare_set.add(word[-2:])
         return common_set, rare_set
 
     def _build_data(self, sentences, mode):
