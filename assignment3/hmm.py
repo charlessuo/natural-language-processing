@@ -99,8 +99,42 @@ class HMM:
         return pred_y
 
     def _viterbi(self, x):
-        y_ = []
-        return y_
+        pred_y = []
+        for c, sentence in enumerate(x):
+            pi = {state: float('-inf') for state in self.states}
+            pi[('*', '*')] = 0
+            back_pointer = {}
+            bp_idx = 0
+            for i, word in enumerate(sentence):
+                if word == '*':
+                    continue
+                new_pi = {state: float('-inf') for state in self.states}
+                for state in self.states:
+                    N, V = state
+                    if (word, N) not in self.emissions:
+                        new_pi[(N, V)] = float('-inf')
+                        continue
+                    for D in self.tag_list:
+                        score = pi[(V, D)] + self.transitions[(N, V, D)] + self.emissions[(word, N)]
+                        if score > new_pi[(N, V)]:
+                            new_pi[(N, V)] = score
+                            back_pointer[(bp_idx, N, V)] = D # bp_idx starts from 0
+                pi = new_pi
+                bp_idx += 1
+            # generate sequence from back pointer
+            last_state = max(pi, key=pi.get) # get last state with the highest score
+            seq = list(last_state)           # put last two tags into the sequence
+            bp_idx -= 1                      # set back pointer index to the right ending point
+            while bp_idx >= 0:
+                N, V = seq[-2:]
+                D = back_pointer[(bp_idx, N, V)]
+                seq.append(D)
+                bp_idx -= 1
+            pred_y.append(seq[::-1])
+            if c % 20 == 0:
+                print('%dth sentence:' % c)
+                print(seq[::-1])
+        return pred_y
 
     def accuracy(self, dev_x, dev_y, decode, k=None):
         pred_y = self.inference(dev_x, decode, k)
@@ -126,7 +160,12 @@ if __name__ == '__main__':
 
     hmm = HMM(tag_vocab=loader.tag_vocab)
     hmm.train(train_x, train_y, smooth='add_one') # smooth = ['add_one', 'linear_interpolate']
-#    y_ = hmm.inference(dev_x, decode='beam', k=1) # decode = ['beam', 'viterbi']
-    accuracy = hmm.accuracy(dev_x, dev_y, decode='beam', k=1)
+
+#    pred_y = hmm.inference(dev_x, decode='beam', k=1) # decode = ['beam', 'viterbi']
+#    accuracy = hmm.accuracy(dev_x, dev_y, decode='beam', k=1)
+
+#    pred_y = hmm.inference(dev_x, decode='viterbi') # decode = ['beam', 'viterbi']
+    accuracy = hmm.accuracy(dev_x[:2000], dev_y[:2000], decode='viterbi')
+
     print(accuracy)
 

@@ -111,4 +111,4 @@ if __name__ == '__main__':
     train_x, train_y = loader.load_data('train')
     dev_x, dev_y = loader.load_data('dev')
     test_x, _ = loader.load_data('test')
-
+    print(len(dev_x))
