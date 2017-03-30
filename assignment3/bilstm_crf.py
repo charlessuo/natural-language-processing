@@ -4,7 +4,7 @@ import numpy as np
 import logging
 from rnn_loader import Loader
 
-FILENAME = 'sample-crf'
+FILENAME = 'bilstm_crf_sample'
 logging.basicConfig(filename='./log/{}.log'.format(FILENAME), level=logging.DEBUG)
 
 
