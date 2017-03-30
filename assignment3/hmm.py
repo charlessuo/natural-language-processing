@@ -4,10 +4,12 @@ from hmm_loader import Loader
 from collections import defaultdict
 
 class HMM:
-    def __init__(self):
+    def __init__(self, tag_vocab):
         self.emissions = None
         self.transitions = None
-        self.states = {}
+        self.tag_list = list(tag_vocab)
+        self.states = [(N, V) for N in self.tag_list 
+                              for V in self.tag_list] 
 
     def train(self, train_x, train_y, smooth):
         self.emissions = self._emisson_probs(train_x, train_y)
@@ -19,10 +21,10 @@ class HMM:
         tag_count = defaultdict(int)
         for sentence, tags in zip(train_x, train_y):
             for word, tag in zip(sentence, tags):
-                if word == '*':
+                if tag == '*':
                     continue
-                if tag == '<STOP>':
-                    break
+#                if tag == '<STOP>':
+#                    break
                 emission_count[(word, tag)] += 1
                 tag_count[tag] += 1
         for word, tag in emission_count.keys():
@@ -42,50 +44,76 @@ class HMM:
 
     def _transition_add_one(self, train_y):
         transitions = {}
-        tag_set = set()
         nomin_count = defaultdict(int)
         denom_count = defaultdict(int)
         for tags in train_y:
             for i, tag in enumerate(tags):
-                if tag is None:
+                if tag == '*':
                     continue
-                tag_set.add(tag)
                 N, V, D = tags[i], tags[i - 1], tags[i - 2]
                 nomin_count[(N, V, D)] += 1
                 denom_count[(V, D)] += 1
-        tag_list = list(tag_set)
-
-        tag_pairs = [(tag1, tag2, tag3) for tag1 in tag_list for tag2 in tag_list for tag3 in tag_list]
-        for tag_pair in tag_pairs:
-            N, V, D = tag_pair
+        tag_triplets = [(N, V, D) for N in self.tag_list 
+                                  for V in self.tag_list 
+                                  for D in self.tag_list]
+        for triplet in tag_triplets:
+            N, V, D = triplet
             if (N, V, D) in nomin_count:
                 transitions[(N, V, D)] = np.log((nomin_count[(N, V, D)] + 1) / (denom_count[(V, D)] + len(denom_count)))
             else:
                 transitions[(N, V, D)] = np.log(1 / (denom_count[(V, D)] + len(denom_count)))
-        return transitions         
+        return transitions 
 
     def inference(self, x, decode, k=None):
-        if decode == 'greedy':
-            y_ = self._greedy(x)
-        elif decode == 'beam':
+        if decode == 'beam':
             assert k is not None
-            y_ = self.beam(x, k)
+            pred_y = self._beam(x, k)
         elif decode == 'viterbi':
-            y_ = self._viterbi(x)
+            pred_y = self._viterbi(x)
         else:
             raise NotImplementedError('Decode method not implemented.')
-        return y_
+        return pred_y
 
-    def _greedy(self, x):
-        y_ = []
-        return y_
+    def _beam(self, x, k):
+        pred_y = []
+        for sentence in x:
+            seq = ['*', '*']
+            total_score = 0
+            for i, word in enumerate(sentence):
+                if word == '*':
+                    continue
+                score = float('-inf')
+                back_pointer = None
+                for state in self.states:
+                    N, V = state
+                    if V != seq[-1] or (word, N) not in self.emissions:
+                        continue
+                    D = seq[-2]
+                    score_ = self.emissions[(word, N)] + self.transitions[(N, V, D)]
+                    if score_ > score:
+                        score = score_
+                        back_pointer = N
+                total_score += score
+                seq.append(back_pointer)
+            pred_y.append(seq)
+        return pred_y
 
     def _viterbi(self, x):
         y_ = []
         return y_
 
-    def accuracy(self, dev_x, dev_y):
-        pass
+    def accuracy(self, dev_x, dev_y, decode, k=None):
+        pred_y = self.inference(dev_x, decode, k)
+        num_correct = 0
+        total = 0
+        for pred_seq, dev_seq in zip(pred_y, dev_y):
+            for y_, y in zip(pred_seq, dev_seq):
+                if y == '*' or y == '<STOP>':
+                    continue
+                if y_ == y:
+                    num_correct += 1
+                total += 1
+        return num_correct / total
 
 if __name__ == '__main__':
 
@@ -93,10 +121,12 @@ if __name__ == '__main__':
     train_x, train_y = loader.load_data('train')
     dev_x, dev_y = loader.load_data('dev')
     test_x, _ = loader.load_data('test')
-    common_set = loader.common_set
-    rare_set = loader.rare_set
+#    common_set = loader.common_set
+#    rare_set = loader.rare_set
 
-    hmm = HMM()
-    hmm.train(train_x, train_y, smooth='add_one')
-    y_ = hmm.inference(dev_x, decode='viterbi') # decode = ['greedy', 'beam', 'viterbi']
+    hmm = HMM(tag_vocab=loader.tag_vocab)
+    hmm.train(train_x, train_y, smooth='add_one') # smooth = ['add_one', 'linear_interpolate']
+#    y_ = hmm.inference(dev_x, decode='beam', k=1) # decode = ['beam', 'viterbi']
+    accuracy = hmm.accuracy(dev_x, dev_y, decode='beam', k=1)
+    print(accuracy)
 

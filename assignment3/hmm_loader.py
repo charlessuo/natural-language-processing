@@ -7,6 +7,7 @@ class Loader:
         self.data_path = './data/{}_x.csv'
         self.label_path = './data/{}_y.csv'
         self.ngram = ngram
+        self.tag_vocab = set(['*', '<STOP>'])
         self.common_set = None
         self.rare_set = None
 
@@ -27,17 +28,18 @@ class Loader:
                 next(f_input)
                 next(f_label)
                 sentence = ['*'] * (ngram - 1)
-                tags = [None] * (ngram - 1)
+                tags = ['*'] * (ngram - 1)
                 for input_line, label_line in zip(csv.reader(f_input), csv.reader(f_label)):
                     word = input_line[1]
                     tag = label_line[1]
                     sentence.append(word)
                     tags.append(tag)
+                    self.tag_vocab.add(tag) # build vocab for tags
                     if word == '.' or word == '?':
-                        sentences.append(sentence + [None])
+                        sentences.append(sentence + ['<STOP>'])
                         labels.append(tags + ['<STOP>'])
                         sentence = ['*'] * (ngram - 1)
-                        tags = [None] * (ngram - 1)
+                        tags = ['*'] * (ngram - 1)
         elif mode == 'test':
             with open(self.data_path.format(mode)) as f:
                 next(f)
@@ -46,7 +48,7 @@ class Loader:
                     word = input_line[1]
                     sentence.append(word)
                     if word == '.' or word == '?':
-                        sentences.append(sentence + [None])
+                        sentences.append(sentence + ['<STOP>'])
                         sentence = ['*'] * (ngram - 1)
         return sentences, labels
 
@@ -54,7 +56,7 @@ class Loader:
         counts = {}
         for sentence in sentences:
             for word in sentence:
-                if word == '*' or word is None:
+                if word == '*' or word == '<STOP>':
                     continue
                 if word not in counts:
                     counts[word] = 1
@@ -85,7 +87,7 @@ class Loader:
         sentences_ = sentences[:]
         for i, sentence in enumerate(sentences):
             for j, word in enumerate(sentence):
-                if word == '*' or word is None:
+                if word == '*' or word == '<STOP>':
                     continue
                 suffix = word[-2:] # use suffix to collect unseen words
                 if word in self.common_set:
