@@ -31,14 +31,7 @@ class RNN:
             self.rnn_output = tf.concat(2, outputs, name='rnn_output')
             self.rnn_outputs_flat = tf.reshape(self.rnn_output, shape=[-1, 2 * cell_size]) # (N * sentence_len, 2 * cell_size)
 
-#            outputs, states = tf.nn.dynamic_rnn(cell,
-#                                                inputs=self.embedded_x,
-#                                                sequence_length=self.seq_len, 
-#                                                dtype=tf.float32)
-#            self.rnn_outputs_flat = tf.reshape(outputs, shape=[-1, cell_size])
-
         with tf.name_scope('output-layer'):
-#            W = tf.Variable(tf.truncated_normal([cell_size, num_classes], stddev=1.0 / np.sqrt(num_classes)), name='W')
             W = tf.Variable(tf.truncated_normal([2 * cell_size, num_classes], stddev=1.0 / np.sqrt(num_classes)), name='W')
             b = tf.Variable(tf.zeros([num_classes]), name='b')
 
