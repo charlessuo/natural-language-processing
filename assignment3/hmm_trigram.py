@@ -121,7 +121,7 @@ class HMM:
             raise NotImplementedError('Decode method not implemented.')
         return pred_y
 
-    def _beam(self, x, k):
+    def _beam2(self, x, k):
         pred_y = []
         for sentence in x:
             seq = ['*', '*']
@@ -143,6 +143,46 @@ class HMM:
                 total_score += score
                 seq.append(back_pointer)
             pred_y.append(seq)
+        return pred_y
+
+    def _beam(self, x, k):
+        pred_y = []
+        c = 0
+        for sentence in x:
+            seqs = [['*', '*'] for _ in range(k)]
+            total_scores = [0] * k
+            for i, word in enumerate(sentence):
+                if word == '*':
+                    continue
+                topk_scores = [float('-inf')] * k
+                topk_backpointers = [(0, '', '')] * k # [(k_, N, V), ...]
+                for k_ in range(k):
+                    for state in self.states:
+                        N, V = state
+                        if V != seqs[k_][-1] or (word, N) not in self.emissions:
+                            continue
+                        D = seqs[k_][-2]
+                        score = self.emissions[(word, N)] + self.transitions[(N, V, D)] + total_scores[k_]
+                        min_score = min(topk_scores)
+                        if score > min_score and (k_, N, V) not in topk_backpointers:
+                            min_idx = topk_scores.index(min_score)
+                            topk_scores[min_idx] = score
+                            topk_backpointers[min_idx] = (k_, N, V)
+                new_seqs = []
+                new_total_scores = []
+                for score, bp in zip(topk_scores, topk_backpointers):
+                    #print(k_, N, score)
+                    k_, N, V = bp
+                    new_seqs.append(seqs[k_] + [N])
+                    new_total_scores.append(score)
+                seqs = new_seqs
+                total_scores = new_total_scores
+            if c % 50 == 0:
+                for seq in seqs:
+                    print(seq)
+            c += 1
+            max_score_idx = total_scores.index(max(total_scores))
+            pred_y.append(seqs[max_score_idx])
         return pred_y
 
     def _viterbi(self, x):
@@ -196,6 +236,7 @@ class HMM:
                 total += 1
         return num_correct / total
 
+
 def generate_submission(pred_sequences, filename='hmm_trigram_sample'):
     with open('./results/' + filename + '.csv', 'w') as f:
         f.write('id,tag\n')
@@ -215,10 +256,16 @@ if __name__ == '__main__':
     test_x, _ = loader.load_data('test')
 
     hmm = HMM(tag_vocab=loader.tag_vocab)
-    hmm.train(train_x, train_y, smooth='linear_interpolate', lambdas=(0.8, 0.15, 0.05)) # smooth = ['add_one', 'linear_interpolate']
+    # smooth = ['add_one', 'linear_interpolate']
+#    hmm.train(train_x, train_y, smooth='linear_interpolate', lambdas=(0.6, 0.3, 0.1))
+    hmm.train(train_x, train_y, smooth='add_one')
 
-    dev_acc = hmm.accuracy(dev_x[:1000], dev_y[:1000], decode='viterbi')
+    # inference
+#    dev_acc = hmm.accuracy(dev_x, dev_y, decode='viterbi')
+    dev_acc = hmm.accuracy(dev_x, dev_y, decode='beam', k=3)
     print('Dev accuracy:', dev_acc)
+
+    # generate submission .csv file
 #    pred_y = hmm.inference(test_x, decode='viterbi') # decode = ['beam', 'viterbi']
 #    generate_submission(pred_y, filename='hmm_trigram_add_one_viterbi')
 

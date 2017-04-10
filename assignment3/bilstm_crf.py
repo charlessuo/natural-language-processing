@@ -20,7 +20,7 @@ class RNN:
             self.embedded_x = tf.nn.embedding_lookup(self.embeddings, self.inputs, name='embedded_x')
         
         with tf.name_scope('rnn-layer'):
-            cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True)
+            cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True))
             cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=0.5)
             cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
             outputs, states = tf.nn.bidirectional_dynamic_rnn(cell,

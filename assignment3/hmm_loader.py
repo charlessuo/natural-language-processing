@@ -71,19 +71,19 @@ class Loader:
             counts: dict, word-count mapping, words are all raw strings
         Returns:
             common_set: set, collection of words with count >= 5
-            rare_set: set, collection of word suffixes with word 2 < count < 5
+            rare_set: set, collection of word suffixes with word 2 <= count < 5
         '''
         common_set = set()
         rare_set = set()
         for word, count in counts.items():
             if count >= 5:
                 common_set.add(word)
-            if 2 < count < 5:
+            if 2 <= count < 5:
                 rare_set.add(word[-2:])
         return common_set, rare_set
 
     def _build_data(self, sentences, mode):
-        count0 = 0; count1 = 0; count2 = 0
+        bucket_counts = {'common': 0, 'rare': 0, 'unk': 0}
         sentences_ = sentences[:]
         for i, sentence in enumerate(sentences):
             for j, word in enumerate(sentence):
@@ -92,17 +92,17 @@ class Loader:
                 suffix = word[-2:] # use suffix to collect unseen words
                 if word in self.common_set:
                     sentences_[i][j] = word
-                    count0 += 1
+                    bucket_counts['common'] += 1
                 elif suffix in self.rare_set:
                     sentences_[i][j] = suffix
-                    count1 += 1
+                    bucket_counts['rare'] += 1
                 else:
                     sentences_[i][j] = '<UNK>'
-                    count2 += 1
+                    bucket_counts['unk'] += 1
         print('Mode %s' % mode)
-        print('  Common words:', count0)
-        print('  Rare words:', count1)
-        print('  Unseen words:', count2)
+        print('  Common words:', bucket_counts['common'])
+        print('  Rare words:', bucket_counts['rare'])
+        print('  Unseen words:', bucket_counts['unk'])
         return sentences_
 
 
@@ -111,4 +111,4 @@ if __name__ == '__main__':
     train_x, train_y = loader.load_data('train')
     dev_x, dev_y = loader.load_data('dev')
     test_x, _ = loader.load_data('test')
-    print(len(dev_x))
+
