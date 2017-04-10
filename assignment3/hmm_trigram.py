@@ -10,7 +10,7 @@ class HMM:
         self.transitions = None
         self.tag_list = list(tag_vocab)
 
-        # self.states contain two-tag states (trigram)
+        # self.states contains two-tag states (trigram)
         self.states = [(N, V) for N in self.tag_list 
                               for V in self.tag_list]
 
@@ -111,51 +111,26 @@ class HMM:
                 transitions[(N, V, D)] = np.log(1 / (denom_count[(V, D)] + len(denom_count)))
         return transitions 
 
-    def inference(self, x, decode, k=None):
+    def inference(self, x, decode, k=None, verbose=False):
         if decode == 'beam':
             assert k is not None
-            pred_y = self._beam(x, k)
+            pred_y = self._beam(x, k, verbose)
         elif decode == 'viterbi':
-            pred_y = self._viterbi(x)
+            pred_y = self._viterbi(x, verbose)
         else:
             raise NotImplementedError('Decode method not implemented.')
         return pred_y
 
-    def _beam2(self, x, k):
+    def _beam(self, x, k, verbose):
         pred_y = []
-        for sentence in x:
-            seq = ['*', '*']
-            total_score = 0
-            for i, word in enumerate(sentence):
-                if word == '*':
-                    continue
-                score = float('-inf')
-                back_pointer = None
-                for state in self.states:
-                    N, V = state
-                    if V != seq[-1] or (word, N) not in self.emissions:
-                        continue
-                    D = seq[-2]
-                    score_ = self.emissions[(word, N)] + self.transitions[(N, V, D)]
-                    if score_ > score:
-                        score = score_
-                        back_pointer = N
-                total_score += score
-                seq.append(back_pointer)
-            pred_y.append(seq)
-        return pred_y
-
-    def _beam(self, x, k):
-        pred_y = []
-        c = 0
-        for sentence in x:
+        for c, sentence in enumerate(x):
             seqs = [['*', '*'] for _ in range(k)]
             total_scores = [0] * k
             for i, word in enumerate(sentence):
                 if word == '*':
                     continue
                 topk_scores = [float('-inf')] * k
-                topk_backpointers = [(0, '', '')] * k # [(k_, N, V), ...]
+                topk_backpointers = [(0, '')] * k # [(k_, N), ...]
                 for k_ in range(k):
                     for state in self.states:
                         N, V = state
@@ -164,28 +139,28 @@ class HMM:
                         D = seqs[k_][-2]
                         score = self.emissions[(word, N)] + self.transitions[(N, V, D)] + total_scores[k_]
                         min_score = min(topk_scores)
-                        if score > min_score and (k_, N, V) not in topk_backpointers:
+                        if score > min_score and score not in topk_scores and (k_, N) not in topk_backpointers:
                             min_idx = topk_scores.index(min_score)
                             topk_scores[min_idx] = score
-                            topk_backpointers[min_idx] = (k_, N, V)
+                            topk_backpointers[min_idx] = (k_, N)
                 new_seqs = []
                 new_total_scores = []
                 for score, bp in zip(topk_scores, topk_backpointers):
-                    #print(k_, N, score)
-                    k_, N, V = bp
+                    k_, N = bp
                     new_seqs.append(seqs[k_] + [N])
                     new_total_scores.append(score)
                 seqs = new_seqs
                 total_scores = new_total_scores
-            if c % 50 == 0:
+            if verbose and c % 50 == 0:
+                print('%dth sentence:' % c)
                 for seq in seqs:
                     print(seq)
-            c += 1
             max_score_idx = total_scores.index(max(total_scores))
             pred_y.append(seqs[max_score_idx])
         return pred_y
 
-    def _viterbi(self, x):
+    def _viterbi(self, x, verbose):
+        # TODO: something should be fixed
         pred_y = []
         for c, sentence in enumerate(x):
             pi = {state: float('-inf') for state in self.states}
@@ -218,13 +193,13 @@ class HMM:
                 seq.append(D)
                 bp_idx -= 1
             pred_y.append(seq[::-1])
-            if c % 50 == 0:
+            if verbose and c % 50 == 0:
                 print('%dth sentence:' % c)
                 print(seq[::-1])
         return pred_y
 
-    def accuracy(self, dev_x, dev_y, decode, k=None):
-        pred_y = self.inference(dev_x, decode, k)
+    def accuracy(self, dev_x, dev_y, decode, k=None, verbose=False):
+        pred_y = self.inference(dev_x, decode, k, verbose)
         num_correct = 0
         total = 0
         for pred_seq, dev_seq in zip(pred_y, dev_y):
@@ -235,6 +210,23 @@ class HMM:
                     num_correct += 1
                 total += 1
         return num_correct / total
+
+    def compare_mistaken_sentences(self, dev_x, dev_y, decode, k=None, verbose=False):
+        pred_y = self.inference(dev_x, decode, k, verbose)
+        num_incorrect_sentences = 0
+        total_sentences = 0
+        for pred_seq, dev_seq in zip(pred_y, dev_y):
+            for y_, y in zip(pred_seq, dev_seq):
+                if y == '*' or y == '<STOP>':
+                    continue
+                if y_ != y:
+                    num_incorrect_sentences += 1
+                    print('prediction:', pred_seq)
+                    print('ground truth:', dev_seq)
+                    print('=====')
+                    break
+            total_sentences += 1
+        return 1 - num_incorrect_sentences / total_sentences
 
 
 def generate_submission(pred_sequences, filename='hmm_trigram_sample'):
@@ -261,9 +253,14 @@ if __name__ == '__main__':
     hmm.train(train_x, train_y, smooth='add_one')
 
     # inference
-#    dev_acc = hmm.accuracy(dev_x, dev_y, decode='viterbi')
-    dev_acc = hmm.accuracy(dev_x, dev_y, decode='beam', k=3)
-    print('Dev accuracy:', dev_acc)
+    dev_acc = hmm.accuracy(dev_x[:2000], dev_y[:2000], decode='viterbi', verbose=False)
+    print('Dev accuracy (viterbi):', dev_acc)
+    dev_acc = hmm.accuracy(dev_x[:2000], dev_y[:2000], decode='beam', k=3, verbose=False)
+    print('Dev accuracy (beam):', dev_acc)
+
+    # analysis
+#    acc = hmm.compare_mistaken_sentences(dev_x, dev_y, decode='beam', k=1)
+#    print('sentence level accuracy:', acc)
 
     # generate submission .csv file
 #    pred_y = hmm.inference(test_x, decode='viterbi') # decode = ['beam', 'viterbi']

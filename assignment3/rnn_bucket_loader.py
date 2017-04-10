@@ -71,9 +71,9 @@ class Loader:
 
     def _build_buckets(self, counts):
         for word, count in counts.items():
-            if count >= 5:
+            if count > 2:
                 self.common_set.add(word)
-            if 2 <= count < 5:
+            if count == 2:
                 self.rare_set.add(word[-2:])
 
     def _build_vocabs(self, counts, labels):

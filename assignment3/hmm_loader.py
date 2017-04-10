@@ -70,15 +70,15 @@ class Loader:
         Args:
             counts: dict, word-count mapping, words are all raw strings
         Returns:
-            common_set: set, collection of words with count >= 5
-            rare_set: set, collection of word suffixes with word 2 <= count < 5
+            common_set: set, collection of words with count > 2
+            rare_set: set, collection of word suffixes with word count == 2
         '''
         common_set = set()
         rare_set = set()
         for word, count in counts.items():
-            if count >= 5:
+            if count > 2:
                 common_set.add(word)
-            if 2 <= count < 5:
+            if count == 2:
                 rare_set.add(word[-2:])
         return common_set, rare_set
 
