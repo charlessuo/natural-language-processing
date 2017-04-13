@@ -3,13 +3,14 @@ import csv
 
 
 class Loader:
-    def __init__(self, ngram):
+    def __init__(self, ngram, suffix_size=3):
         self.data_path = './data/{}_x.csv'
         self.label_path = './data/{}_y.csv'
         self.ngram = ngram
         self.tag_vocab = set(['*', '<STOP>'])
         self.common_set = None
         self.rare_set = None
+        self.suffix_size = suffix_size
 
     def load_data(self, mode):
         sentences, labels = self._build_raw_sentences(mode)
@@ -79,7 +80,7 @@ class Loader:
             if count > 2:
                 common_set.add(word)
             if count == 2:
-                rare_set.add(word[-2:])
+                rare_set.add(word[-self.suffix_size:])
         return common_set, rare_set
 
     def _build_data(self, sentences, mode):
@@ -89,7 +90,7 @@ class Loader:
             for j, word in enumerate(sentence):
                 if word == '*' or word == '<STOP>':
                     continue
-                suffix = word[-2:] # use suffix to collect unseen words
+                suffix = word[-self.suffix_size:] # use suffix to collect unseen words
                 if word in self.common_set:
                     sentences_[i][j] = word
                     bucket_counts['common'] += 1

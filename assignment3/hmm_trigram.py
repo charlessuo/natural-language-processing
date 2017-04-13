@@ -37,7 +37,6 @@ class HMM:
             emissions: dict[(str, str)], emission probabilities, i.e. P(word | tag)
         '''
         emissions = defaultdict(lambda: float('-inf'))
-#        emissions = {}
         emission_count = defaultdict(int)
         tag_count = defaultdict(int)
         for sentence, tags in zip(train_x, train_y):
@@ -60,7 +59,6 @@ class HMM:
             return self._transition_linear_interpolate(train_y, lambdas)
 
     def _transition_linear_interpolate(self, train_y, lambdas):
-        # TODO: check if it works correctly
         transitions = defaultdict(float)
         nomin2 = defaultdict(int)
         denom2 = defaultdict(int)
@@ -88,6 +86,8 @@ class HMM:
                 transitions[(N, V, D)] += lambdas[1] * np.log(nomin1[(N, V)] / denom1[V])
             if N in nomin0:
                 transitions[(N, V, D)] += lambdas[0] * np.log(nomin0[N] / len(nomin0))
+            if (N, V, D) not in transitions:
+                transitions[(N, V, D)] = float('-inf')
         return transitions 
 
     def _transition_add_one(self, train_y):
@@ -135,8 +135,6 @@ class HMM:
                 for k_ in range(k):
                     for state in self.states:
                         N, V = state
-#                        if V != seqs[k_][-1] or (word, N) not in self.emissions:
-#                            continue
                         if V != seqs[k_][-1] or self.emissions[(word, N)] == float('-inf'):
                             continue
                         D = seqs[k_][-2]
@@ -175,9 +173,6 @@ class HMM:
                 new_pi = {state: float('-inf') for state in self.states}
                 for state in self.states:
                     N, V = state
-#                    if (word, N) not in self.emissions:
-#                        new_pi[(N, V)] = float('-inf')
-#                        continue
                     if self.emissions[(word, N)] == float('-inf'):
                         continue
                     for D in self.tag_list:
@@ -262,21 +257,21 @@ if __name__ == '__main__':
     hmm.train(train_x, train_y, smooth='add_one')
     print('Done training.')
 
-    sample_size = 1000
+    sample_size = len(dev_x)
 
     # inference
 #    dev_acc = hmm.accuracy(dev_x[:sample_size], dev_y[:sample_size], decode='viterbi', verbose=False)
 #    print('Dev accuracy (viterbi):', dev_acc)
-#    dev_acc = hmm.accuracy(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=3, verbose=False)
-#    print('Dev accuracy (beam):', dev_acc)
+    dev_acc = hmm.accuracy(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=1, verbose=False)
+    print('Dev accuracy (beam):', dev_acc)
 
     # analysis
-    viterbi_sub_rate, viterbi_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='viterbi')
-    print('Suboptimal sequence rate (viterbi):', viterbi_sub_rate)
-    print('Correct sequence rate (viterbi):   ', viterbi_correct_rate)
-    beam_sub_rate, beam_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=3)
-    print('Suboptimal sequence rate (beam):', beam_sub_rate)
-    print('Correct sequence rate (beam):   ', beam_correct_rate)
+#    viterbi_sub_rate, viterbi_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='viterbi')
+#    print('Suboptimal sequence rate (viterbi):', viterbi_sub_rate)
+#    print('Correct sequence rate (viterbi):   ', viterbi_correct_rate)
+#    beam_sub_rate, beam_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=3)
+#    print('Suboptimal sequence rate (beam):', beam_sub_rate)
+#    print('Correct sequence rate (beam):   ', beam_correct_rate)
 
     # generate submission .csv file
 #    pred_y = hmm.inference(test_x, decode='viterbi') # decode = ['beam', 'viterbi']
