@@ -36,7 +36,8 @@ class HMM:
         Returns:
             emissions: dict[(str, str)], emission probabilities, i.e. P(word | tag)
         '''
-        emissions = {}
+        emissions = defaultdict(lambda: float('-inf'))
+#        emissions = {}
         emission_count = defaultdict(int)
         tag_count = defaultdict(int)
         for sentence, tags in zip(train_x, train_y):
@@ -134,7 +135,9 @@ class HMM:
                 for k_ in range(k):
                     for state in self.states:
                         N, V = state
-                        if V != seqs[k_][-1] or (word, N) not in self.emissions:
+#                        if V != seqs[k_][-1] or (word, N) not in self.emissions:
+#                            continue
+                        if V != seqs[k_][-1] or self.emissions[(word, N)] == float('-inf'):
                             continue
                         D = seqs[k_][-2]
                         score = self.emissions[(word, N)] + self.transitions[(N, V, D)] + total_scores[k_]
@@ -160,7 +163,6 @@ class HMM:
         return pred_y
 
     def _viterbi(self, x, verbose):
-        # TODO: something should be fixed
         pred_y = []
         for c, sentence in enumerate(x):
             pi = {state: float('-inf') for state in self.states}
@@ -173,8 +175,10 @@ class HMM:
                 new_pi = {state: float('-inf') for state in self.states}
                 for state in self.states:
                     N, V = state
-                    if (word, N) not in self.emissions:
-                        new_pi[(N, V)] = float('-inf')
+#                    if (word, N) not in self.emissions:
+#                        new_pi[(N, V)] = float('-inf')
+#                        continue
+                    if self.emissions[(word, N)] == float('-inf'):
                         continue
                     for D in self.tag_list:
                         score = pi[(V, D)] + self.transitions[(N, V, D)] + self.emissions[(word, N)]
@@ -211,23 +215,27 @@ class HMM:
                 total += 1
         return num_correct / total
 
-    def compare_mistaken_sentences(self, dev_x, dev_y, decode, k=None, verbose=False):
-        pred_y = self.inference(dev_x, decode, k, verbose)
-        num_incorrect_sentences = 0
-        total_sentences = 0
-        for pred_seq, dev_seq in zip(pred_y, dev_y):
-            for y_, y in zip(pred_seq, dev_seq):
-                if y == '*' or y == '<STOP>':
+    def find_suboptimal_sequences(self, x, y, decode, k=None, verbose=False):
+        pred_y = self.inference(x, decode, k, verbose)
+        num_suboptimal = 0
+        num_completely_correct = 0
+        for sentence, pred_seq, gold_seq in zip(x, pred_y, y):
+            pred_score = 0
+            gold_score = 0
+            for i in range(len(sentence)):
+                if gold_seq[i] == '*':
                     continue
-                if y_ != y:
-                    num_incorrect_sentences += 1
-                    print('prediction:', pred_seq)
-                    print('ground truth:', dev_seq)
-                    print('=====')
-                    break
-            total_sentences += 1
-        return 1 - num_incorrect_sentences / total_sentences
-
+                pred_score += (self.transitions[(pred_seq[i], pred_seq[i - 1], pred_seq[i - 2])] 
+                              + self.emissions[(sentence[i], pred_seq[i])])
+                gold_score += (self.transitions[(gold_seq[i], gold_seq[i - 1], gold_seq[i - 2])]
+                              + self.emissions[(sentence[i], gold_seq[i])])
+            if gold_score > pred_score:
+                num_suboptimal += 1
+#                print('Predicted seq:', pred_seq)
+#                print('Gold seq:     ', gold_seq)
+            if gold_score == pred_score:
+                num_completely_correct += 1
+        return num_suboptimal / len(x), num_completely_correct / len(x)
 
 def generate_submission(pred_sequences, filename='hmm_trigram_sample'):
     with open('./results/' + filename + '.csv', 'w') as f:
@@ -246,21 +254,29 @@ if __name__ == '__main__':
     train_x, train_y = loader.load_data('train')
     dev_x, dev_y = loader.load_data('dev')
     test_x, _ = loader.load_data('test')
+    print('Done loading data.')
 
     hmm = HMM(tag_vocab=loader.tag_vocab)
     # smooth = ['add_one', 'linear_interpolate']
 #    hmm.train(train_x, train_y, smooth='linear_interpolate', lambdas=(0.6, 0.3, 0.1))
     hmm.train(train_x, train_y, smooth='add_one')
+    print('Done training.')
+
+    sample_size = 1000
 
     # inference
-    dev_acc = hmm.accuracy(dev_x[:2000], dev_y[:2000], decode='viterbi', verbose=False)
-    print('Dev accuracy (viterbi):', dev_acc)
-    dev_acc = hmm.accuracy(dev_x[:2000], dev_y[:2000], decode='beam', k=3, verbose=False)
-    print('Dev accuracy (beam):', dev_acc)
+#    dev_acc = hmm.accuracy(dev_x[:sample_size], dev_y[:sample_size], decode='viterbi', verbose=False)
+#    print('Dev accuracy (viterbi):', dev_acc)
+#    dev_acc = hmm.accuracy(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=3, verbose=False)
+#    print('Dev accuracy (beam):', dev_acc)
 
     # analysis
-#    acc = hmm.compare_mistaken_sentences(dev_x, dev_y, decode='beam', k=1)
-#    print('sentence level accuracy:', acc)
+    viterbi_sub_rate, viterbi_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='viterbi')
+    print('Suboptimal sequence rate (viterbi):', viterbi_sub_rate)
+    print('Correct sequence rate (viterbi):   ', viterbi_correct_rate)
+    beam_sub_rate, beam_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=3)
+    print('Suboptimal sequence rate (beam):', beam_sub_rate)
+    print('Correct sequence rate (beam):   ', beam_correct_rate)
 
     # generate submission .csv file
 #    pred_y = hmm.inference(test_x, decode='viterbi') # decode = ['beam', 'viterbi']

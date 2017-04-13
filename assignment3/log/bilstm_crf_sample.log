@@ -10,3 +10,6 @@ DEBUG:root:Epoch: 0, Step: 20, loss: 32.796005, accuracy: 0.63
 DEBUG:root:Epoch: 0, Step: 30, loss: 24.588654, accuracy: 0.70
 DEBUG:root:Epoch: 0, Step: 40, loss: 19.064054, accuracy: 0.77
 DEBUG:root:Dev accuracy: 0.7857551405022611
+DEBUG:root:Epoch: 0, Step: 0, loss: 91.249191, accuracy: 0.15
+DEBUG:root:Epoch: 0, Step: 0, loss: 95.780579, accuracy: 0.16
+DEBUG:root:Epoch: 0, Step: 10, loss: 45.583981, accuracy: 0.47
