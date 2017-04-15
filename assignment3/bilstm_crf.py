@@ -139,10 +139,10 @@ if __name__ == '__main__':
     rnn = RNN(vocab_size=len(id_to_word), 
               num_classes=len(id_to_class), 
               sentence_len=max_len, 
-              embed_size=64, 
-              cell_size=64, 
+              embed_size=128, 
+              cell_size=128,
               num_layers=1)
-    rnn.train(train_x[:3200], train_y[:3200], num_epoch=1, batch_size=64)
+    rnn.train(train_x, train_y, num_epoch=3, batch_size=64)
     dev_accuracy = rnn.calculate_accuracy(dev_x, dev_y)
     print('Dev accuracy:', dev_accuracy)
     logging.debug('Dev accuracy: {}'.format(dev_accuracy))

@@ -8,11 +8,8 @@ class HMM:
     def __init__(self, tag_vocab):
         self.emissions = None
         self.transitions = None
-        self.tag_list = list(tag_vocab)
-
-        # self.states contains two-tag states (trigram)
-        self.states = [(N, V) for N in self.tag_list 
-                              for V in self.tag_list]
+        # self.states contains one-tag states (bigram)
+        self.states = list(tag_vocab)
 
     def train(self, train_x, train_y, smooth, lambdas=None):
         '''
@@ -60,8 +57,6 @@ class HMM:
 
     def _transition_linear_interpolate(self, train_y, lambdas):
         transitions = defaultdict(float)
-        nomin2 = defaultdict(int)
-        denom2 = defaultdict(int)
         nomin1 = defaultdict(int)
         denom1 = defaultdict(int)
         nomin0 = defaultdict(int)
@@ -69,25 +64,22 @@ class HMM:
             for i, tag in enumerate(tags):
                 if tag == '*':
                     continue
-                N, V, D = tags[i], tags[i - 1], tags[i - 2]
-                nomin2[(N, V, D)] += 1
-                denom2[(V, D)] += 1
+                N, V = tags[i], tags[i - 1]
                 nomin1[(N, V)] += 1
                 denom1[V] += 1
                 nomin0[N] += 1
-        tag_triplets = [(N, V, D) for N in self.tag_list 
-                                  for V in self.tag_list 
-                                  for D in self.tag_list]
-        for triplet in tag_triplets:
-            N, V, D = triplet
-            if (N, V, D) in nomin2:
-                transitions[(N, V, D)] += lambdas[2] * np.log(nomin2[(N, V, D)] / denom2[(V, D)])
+        tag_pairs = [(N, V) for N in self.states
+                            for V in self.states]
+        for pair in tag_pairs:
+            N, V = pair
             if (N, V) in nomin1:
-                transitions[(N, V, D)] += lambdas[1] * np.log(nomin1[(N, V)] / denom1[V])
+                transitions[(N, V)] += lambdas[1] * nomin1[(N, V)] / denom1[V]
             if N in nomin0:
-                transitions[(N, V, D)] += lambdas[0] * np.log(nomin0[N] / len(nomin0))
-            if (N, V, D) not in transitions:
-                transitions[(N, V, D)] = float('-inf')
+                transitions[(N, V)] += lambdas[0] * nomin0[N] / len(nomin0)
+            if (N, V) not in transitions:
+                transitions[(N, V)] = float('-inf')
+            else:
+                transitions[(N, V)] = np.log(transitions[(N, V)])
         return transitions 
 
     def _transition_add_one(self, train_y):
@@ -98,18 +90,17 @@ class HMM:
             for i, tag in enumerate(tags):
                 if tag == '*':
                     continue
-                N, V, D = tags[i], tags[i - 1], tags[i - 2]
-                nomin_count[(N, V, D)] += 1
-                denom_count[(V, D)] += 1
-        tag_triplets = [(N, V, D) for N in self.tag_list 
-                                  for V in self.tag_list 
-                                  for D in self.tag_list]
-        for triplet in tag_triplets:
-            N, V, D = triplet
-            if (N, V, D) in nomin_count:
-                transitions[(N, V, D)] = np.log((nomin_count[(N, V, D)] + 1) / (denom_count[(V, D)] + len(denom_count)))
+                N, V = tags[i], tags[i - 1]
+                nomin_count[(N, V)] += 1
+                denom_count[V] += 1
+        tag_pairs = [(N, V) for N in self.states 
+                            for V in self.states]
+        for pair in tag_pairs:
+            N, V = pair
+            if (N, V) in nomin_count:
+                transitions[(N, V)] = np.log((nomin_count[(N, V)] + 1) / (denom_count[V] + len(denom_count)))
             else:
-                transitions[(N, V, D)] = np.log(1 / (denom_count[(V, D)] + len(denom_count)))
+                transitions[(N, V)] = np.log(1 / (denom_count[V] + len(denom_count)))
         return transitions 
 
     def inference(self, x, decode, k=None, verbose=False):
@@ -125,7 +116,7 @@ class HMM:
     def _beam(self, x, k, verbose):
         pred_y = []
         for c, sentence in enumerate(x):
-            seqs = [['*', '*'] for _ in range(k)]
+            seqs = [['*'] for _ in range(k)]
             total_scores = [0] * k
             for i, word in enumerate(sentence):
                 if word == '*':
@@ -134,11 +125,13 @@ class HMM:
                 topk_backpointers = [(0, '')] * k # [(k_, N), ...]
                 for k_ in range(k):
                     for state in self.states:
-                        N, V = state
-                        if V != seqs[k_][-1] or self.emissions[(word, N)] == float('-inf'):
+                        N = state
+                        if self.emissions[(word, N)] == float('-inf'):
                             continue
-                        D = seqs[k_][-2]
-                        score = self.emissions[(word, N)] + self.transitions[(N, V, D)] + total_scores[k_]
+                        if seqs[k_][-1] == '':
+                            continue
+                        V = seqs[k_][-1]
+                        score = self.emissions[(word, N)] + self.transitions[(N, V)] + total_scores[k_]
                         min_score = min(topk_scores)
                         if score > min_score and score not in topk_scores and (k_, N) not in topk_backpointers:
                             min_idx = topk_scores.index(min_score)
@@ -164,31 +157,31 @@ class HMM:
         pred_y = []
         for c, sentence in enumerate(x):
             pi = {state: float('-inf') for state in self.states}
-            pi[('*', '*')] = 0
+            pi['*'] = 0
             back_pointer = {}
             bp_idx = 0
-            for i, word in enumerate(sentence):
+            for word in sentence:
                 if word == '*':
                     continue
                 new_pi = {state: float('-inf') for state in self.states}
-                for N, V in self.states:
+                for N in self.states:
                     if self.emissions[(word, N)] == float('-inf'):
                         continue
-                    for D in self.tag_list:
-                        score = pi[(V, D)] + self.transitions[(N, V, D)] + self.emissions[(word, N)]
-                        if score > new_pi[(N, V)]:
-                            new_pi[(N, V)] = score
-                            back_pointer[(bp_idx, N, V)] = D # bp_idx starts from 0
+                    for V in self.states:
+                        score = pi[V] + self.transitions[(N, V)] + self.emissions[(word, N)]
+                        if score > new_pi[N]:
+                            new_pi[N] = score
+                            back_pointer[(bp_idx, N)] = V # bp_idx starts from 0
                 pi = new_pi
                 bp_idx += 1
             # generate sequence from back pointer
             last_state = max(pi, key=pi.get) # get last state with the highest score
-            seq = list(last_state)           # put last two tags into the sequence
-            bp_idx -= 1                      # set back pointer index to the right ending point
+            seq = [last_state]               # put last tag into the sequence
+            bp_idx -= 1                      # set bp_idx to the right ending position
             while bp_idx >= 0:
-                N, V = seq[-2:]
-                D = back_pointer[(bp_idx, N, V)]
-                seq.append(D)
+                N = seq[-1]
+                tag = back_pointer[(bp_idx, N)]
+                seq.append(tag)
                 bp_idx -= 1
             pred_y.append(seq[::-1])
             if verbose and c % 50 == 0:
@@ -213,15 +206,16 @@ class HMM:
         pred_y = self.inference(x, decode, k, verbose)
         num_suboptimal = 0
         num_completely_correct = 0
+        num_other = 0
         for sentence, pred_seq, gold_seq in zip(x, pred_y, y):
             pred_score = 0
             gold_score = 0
             for i in range(len(sentence)):
                 if gold_seq[i] == '*':
                     continue
-                pred_score += (self.transitions[(pred_seq[i], pred_seq[i - 1], pred_seq[i - 2])] 
+                pred_score += (self.transitions[(pred_seq[i], pred_seq[i - 1])] 
                               + self.emissions[(sentence[i], pred_seq[i])])
-                gold_score += (self.transitions[(gold_seq[i], gold_seq[i - 1], gold_seq[i - 2])]
+                gold_score += (self.transitions[(gold_seq[i], gold_seq[i - 1])]
                               + self.emissions[(sentence[i], gold_seq[i])])
             if gold_score > pred_score:
                 num_suboptimal += 1
@@ -231,7 +225,7 @@ class HMM:
                 num_completely_correct += 1
         return num_suboptimal / len(x), num_completely_correct / len(x)
 
-def generate_submission(pred_sequences, filename='hmm_trigram_sample'):
+def generate_submission(pred_sequences, filename='hmm_bigram_sample'):
     with open('./results/' + filename + '.csv', 'w') as f:
         f.write('id,tag\n')
         idx = 0
@@ -244,7 +238,7 @@ def generate_submission(pred_sequences, filename='hmm_trigram_sample'):
 
 
 if __name__ == '__main__':
-    loader = Loader(ngram=3)
+    loader = Loader(ngram=2)
     train_x, train_y = loader.load_data('train')
     dev_x, dev_y = loader.load_data('dev')
     test_x, _ = loader.load_data('test')
@@ -252,7 +246,7 @@ if __name__ == '__main__':
 
     hmm = HMM(tag_vocab=loader.tag_vocab)
     # smooth = ['add_one', 'linear_interpolate']
-#    hmm.train(train_x, train_y, smooth='linear_interpolate', lambdas=(0.6, 0.3, 0.1))
+#    hmm.train(train_x, train_y, smooth='linear_interpolate', lambdas=(0.8, 0.2))
     hmm.train(train_x, train_y, smooth='add_one')
     print('Done training.')
 

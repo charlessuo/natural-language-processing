@@ -76,6 +76,7 @@ class Loader:
         '''
         common_set = set()
         rare_set = set()
+        num_set = set()
         for word, count in counts.items():
             if count > 2:
                 common_set.add(word)

@@ -3,7 +3,7 @@ import csv
 
 
 class Loader:
-    def __init__(self):
+    def __init__(self, suffix_size=3):
         self.data_path = './data/{}_x.csv'
         self.label_path = './data/{}_y.csv'
         self.word_to_id = None
@@ -13,6 +13,7 @@ class Loader:
         self.max_len = None
         self.common_set = set()
         self.rare_set = set()
+        self.suffix_size = suffix_size
 
     def load_data(self, mode):
         sentences, labels = self._build_raw_sentences(mode)
@@ -74,7 +75,7 @@ class Loader:
             if count > 2:
                 self.common_set.add(word)
             if count == 2:
-                self.rare_set.add(word[-2:])
+                self.rare_set.add(word[-self.suffix_size:])
 
     def _build_vocabs(self, counts, labels):
         # build word-id mapping (frequent word has smaller index)
@@ -115,7 +116,7 @@ class Loader:
         labels = np.zeros(inputs.shape).astype(int)
         for i, sentence in enumerate(sentences):
             for j, word in enumerate(sentence):
-                suffix = word[-2:]
+                suffix = word[-self.suffix_size:]
                 if word in self.word_to_id:
                     inputs[i, j] = self.word_to_id[word]
                     bucket_counts['common'] += 1
