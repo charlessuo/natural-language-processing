@@ -3,7 +3,6 @@ import numpy as np
 from hmm_loader import Loader
 from collections import defaultdict
 
-
 class HMM:
     def __init__(self, tag_vocab):
         self.emissions = None
@@ -207,6 +206,7 @@ class HMM:
         num_suboptimal = 0
         num_completely_correct = 0
         num_other = 0
+        idx = 0
         for sentence, pred_seq, gold_seq in zip(x, pred_y, y):
             pred_score = 0
             gold_score = 0
@@ -219,11 +219,16 @@ class HMM:
                               + self.emissions[(sentence[i], gold_seq[i])])
             if gold_score > pred_score:
                 num_suboptimal += 1
-#                print('Predicted seq:', pred_seq)
-#                print('Gold seq:     ', gold_seq)
+                print('[%d] Predicted seq:' % idx)
+                print(pred_seq)
+                print('[%d] Gold seq:' % idx)
+                print(gold_seq)
+                print()
             if gold_score == pred_score:
                 num_completely_correct += 1
+            idx += 1
         return num_suboptimal / len(x), num_completely_correct / len(x)
+
 
 def generate_submission(pred_sequences, filename='hmm_bigram_sample'):
     with open('./results/' + filename + '.csv', 'w') as f:
@@ -245,28 +250,26 @@ if __name__ == '__main__':
     print('Done loading data.')
 
     hmm = HMM(tag_vocab=loader.tag_vocab)
-    # smooth = ['add_one', 'linear_interpolate']
-#    hmm.train(train_x, train_y, smooth='linear_interpolate', lambdas=(0.8, 0.2))
+    # smooth can be either 'add_one' or 'linear_interpolate'
+#    hmm.train(train_x, train_y, smooth='linear_interpolate', lambdas=(0.65, 0.35))
     hmm.train(train_x, train_y, smooth='add_one')
     print('Done training.')
 
-    sample_size = 2000
-
     # inference
-    dev_acc = hmm.accuracy(dev_x[:sample_size], dev_y[:sample_size], decode='viterbi', verbose=False)
+    dev_acc = hmm.accuracy(dev_x, dev_y, decode='viterbi', verbose=False)
     print('Dev accuracy (viterbi):', dev_acc)
-    dev_acc = hmm.accuracy(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=3, verbose=False)
+    dev_acc = hmm.accuracy(dev_x, dev_y, decode='beam', k=3, verbose=False)
     print('Dev accuracy (beam):', dev_acc)
 
     # analysis
-    viterbi_sub_rate, viterbi_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='viterbi')
+    viterbi_sub_rate, viterbi_correct_rate = hmm.find_suboptimal_sequences(dev_x, dev_y, decode='viterbi')
     print('Suboptimal sequence rate (viterbi):', viterbi_sub_rate)
     print('Correct sequence rate (viterbi):   ', viterbi_correct_rate)
-    beam_sub_rate, beam_correct_rate = hmm.find_suboptimal_sequences(dev_x[:sample_size], dev_y[:sample_size], decode='beam', k=3)
+    beam_sub_rate, beam_correct_rate = hmm.find_suboptimal_sequences(dev_x, dev_y, decode='beam', k=3)
     print('Suboptimal sequence rate (beam):', beam_sub_rate)
     print('Correct sequence rate (beam):   ', beam_correct_rate)
 
     # generate submission .csv file
-#    pred_y = hmm.inference(test_x, decode='viterbi') # decode = ['beam', 'viterbi']
+#    pred_y = hmm.inference(test_x, decode='viterbi')
 #    generate_submission(pred_y, filename='hmm_trigram_add_one_viterbi')
 

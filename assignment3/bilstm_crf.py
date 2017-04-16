@@ -147,6 +147,6 @@ if __name__ == '__main__':
     print('Dev accuracy:', dev_accuracy)
     logging.debug('Dev accuracy: {}'.format(dev_accuracy))
 
-    test_preds = rnn.predict(test_x)
-    rnn.generate_submission(test_preds, test_x, id_to_class, filename=FILENAME)
+#    test_preds = rnn.predict(test_x)
+#    rnn.generate_submission(test_preds, test_x, id_to_class, filename=FILENAME)
 

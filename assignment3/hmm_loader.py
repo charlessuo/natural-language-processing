@@ -13,6 +13,14 @@ class Loader:
         self.suffix_size = suffix_size
 
     def load_data(self, mode):
+        '''
+        Load data.
+        Args:
+            mode: str, 'train', 'dev', or 'test'
+        Returns:
+            sentences: List[List[str]], final sentences
+            labels: List[List[str]], final labels
+        '''
         sentences, labels = self._build_raw_sentences(mode)
         if mode == 'train':
             counts = self._build_count_dict(sentences)
@@ -21,6 +29,15 @@ class Loader:
         return sentences, labels
 
     def _build_raw_sentences(self, mode):
+        '''
+        Load raw sentences and labels from file
+        and add paddings e.g. '*' and '<STOP>'.
+        Args:
+            mode: str, 'train', 'dev', or 'test'
+        Returns:
+            sentences: List[List[str]], raw sentences with paddings
+            labels: List[List[str]], raw labels with paddings
+        '''
         ngram = self.ngram
         sentences = []
         labels = []
@@ -85,6 +102,15 @@ class Loader:
         return common_set, rare_set
 
     def _build_data(self, sentences, mode):
+        '''
+        Replace words in sentences with its suffix/'<UNK>' token when 
+        it's in rare_set/unseen_set.
+        Args:
+            sentences: List[List[str]], raw sentences with paddings
+            mode: str, 'train', 'dev', or 'test'
+        Returns:
+            sentences_: List[List[str]], final sentences
+        '''
         bucket_counts = {'common': 0, 'rare': 0, 'unk': 0}
         sentences_ = sentences[:]
         for i, sentence in enumerate(sentences):
