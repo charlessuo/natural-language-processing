@@ -1,0 +1,37 @@
+DEBUG:root:Epoch: 0, Step: 0, loss: 96.072830, accuracy: 0.18
+DEBUG:root:Epoch: 0, Step: 0, loss: 95.383049, accuracy: 0.15
+DEBUG:root:Epoch: 0, Step: 10, loss: 43.958160, accuracy: 0.48
+DEBUG:root:Epoch: 0, Step: 20, loss: 33.338455, accuracy: 0.66
+DEBUG:root:Epoch: 0, Step: 30, loss: 25.352907, accuracy: 0.71
+DEBUG:root:Epoch: 0, Step: 0, loss: 90.541275, accuracy: 0.16
+DEBUG:root:Epoch: 0, Step: 10, loss: 51.566639, accuracy: 0.48
+DEBUG:root:Epoch: 0, Step: 20, loss: 29.803770, accuracy: 0.67
+DEBUG:root:Epoch: 0, Step: 30, loss: 25.324202, accuracy: 0.69
+DEBUG:root:Epoch: 0, Step: 40, loss: 19.303970, accuracy: 0.76
+DEBUG:root:Epoch: 0, Step: 50, loss: 17.886587, accuracy: 0.81
+DEBUG:root:Epoch: 0, Step: 60, loss: 14.194746, accuracy: 0.84
+DEBUG:root:Epoch: 0, Step: 70, loss: 14.289860, accuracy: 0.85
+DEBUG:root:Epoch: 0, Step: 80, loss: 11.237043, accuracy: 0.86
+DEBUG:root:Epoch: 0, Step: 90, loss: 9.930913, accuracy: 0.89
+DEBUG:root:Dev accuracy: 0.8724595816822415
+DEBUG:root:Epoch: 0, Step: 0, loss: 83.643784, accuracy: 0.17
+DEBUG:root:Epoch: 0, Step: 10, loss: 51.910305, accuracy: 0.48
+DEBUG:root:Epoch: 0, Step: 20, loss: 33.182396, accuracy: 0.64
+DEBUG:root:Epoch: 0, Step: 30, loss: 24.637812, accuracy: 0.74
+DEBUG:root:Epoch: 0, Step: 40, loss: 19.754253, accuracy: 0.78
+DEBUG:root:Dev accuracy: 0.794853119689245
+DEBUG:root:Epoch: 0, Step: 0, loss: 105.795914, accuracy: 0.14
+DEBUG:root:Epoch: 0, Step: 10, loss: 49.014614, accuracy: 0.48
+DEBUG:root:Epoch: 0, Step: 20, loss: 31.454750, accuracy: 0.64
+DEBUG:root:Epoch: 0, Step: 30, loss: 26.042355, accuracy: 0.71
+DEBUG:root:Epoch: 0, Step: 40, loss: 17.695469, accuracy: 0.78
+DEBUG:root:Dev accuracy: 0.7901086737360146
+DEBUG:root:Epoch: 0, Step: 0, loss: 98.743332, accuracy: 0.15
+DEBUG:root:Epoch: 0, Step: 10, loss: 47.497757, accuracy: 0.48
+DEBUG:root:Epoch: 0, Step: 20, loss: 33.653973, accuracy: 0.62
+DEBUG:root:Epoch: 0, Step: 0, loss: 104.950470, accuracy: 0.15
+DEBUG:root:Epoch: 0, Step: 10, loss: 47.533028, accuracy: 0.46
+DEBUG:root:Epoch: 0, Step: 20, loss: 31.628885, accuracy: 0.65
+DEBUG:root:Epoch: 0, Step: 30, loss: 25.774603, accuracy: 0.69
+DEBUG:root:Epoch: 0, Step: 40, loss: 19.586514, accuracy: 0.78
+DEBUG:root:Dev accuracy: 0.7888865571288078
