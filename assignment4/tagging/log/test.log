@@ -243,3 +243,4 @@ DEBUG:root:[Batch]: Epoch: 1, Step: 870, loss: 2.306040, accuracy: 0.9711
 DEBUG:root:[Batch]: Epoch: 1, Step: 880, loss: 2.756217, accuracy: 0.9692
 DEBUG:root:[Batch]: Epoch: 1, Step: 890, loss: 2.429040, accuracy: 0.9697
 DEBUG:root:Dev accuracy: 0.9557239909308249
+DEBUG:root:[Batch]: Epoch: 0, Step: 0, loss: 97.543327, accuracy: 0.3044
