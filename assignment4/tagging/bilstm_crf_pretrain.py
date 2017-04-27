@@ -14,7 +14,6 @@ class RNN:
         self.inputs = tf.placeholder(tf.float32, [None, sentence_len, embed_size], name='inputs')
         self.labels = tf.placeholder(tf.int32, [None, sentence_len], name='labels')
         self.seq_len = tf.placeholder(tf.int32, [None,])
-#        self.seq_len = tf.reduce_sum(tf.cast(self.inputs > 0, tf.int32), axis=1)
         
         with tf.name_scope('rnn-layer'):
             cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True)
@@ -137,31 +136,7 @@ class RNN:
             for t in range(seq_len_[i]):
                 if predictions[i, t] == y[i, t]:
                     num_correct += 1
-        return num_correct / np.sum(seq_len_)        
-#    def predict(self, x, seq_len_):
-#        logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
-#                                                      feed_dict={self.inputs: x, self.seq_len: seq_len_})
-#        N, sentence_len, _ = logits.shape
-#        preds = np.zeros((N, sentence_len))
-#        for i, logit_, length in zip(range(N), logits, seq_len):
-#            # remove padding from the score and tag sequences
-#            logit_ = logit_[:length]
-#            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
-#            preds[i, :length] = np.array(viterbi_seq)
-#        return preds.astype(int)
-#
-#    def calculate_accuracy(self, x, y, seq_len_):
-#        logits, labels, seq_len, trans_params = self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
-#                                                              feed_dict={self.inputs: x, self.labels: y, self.seq_len: seq_len_})
-#
-#        num_correct = 0
-#        for logit_, y_, length in zip(logits, labels, seq_len):
-#            # remove padding from the score and tag sequences
-#            logit_ = logit_[:length]
-#            y_ = y_[:length]
-#            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
-#            num_correct += np.sum(np.equal(viterbi_seq, y_))
-#        return num_correct / np.sum(seq_len)
+        return num_correct / np.sum(seq_len_)
 
     def generate_submission(self, test_preds, test_x, test_seq_len, id_to_class, filename='submission'):
         with open('./results/' + filename + '.csv', 'w') as f:

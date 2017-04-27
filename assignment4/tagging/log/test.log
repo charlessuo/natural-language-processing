@@ -335,3 +335,27 @@ DEBUG:root:[Batch]: Epoch: 1, Step: 870, loss: 0.250825, accuracy: 0.9189
 DEBUG:root:[Batch]: Epoch: 1, Step: 880, loss: 0.323329, accuracy: 0.9264
 DEBUG:root:[Batch]: Epoch: 1, Step: 890, loss: 0.287360, accuracy: 0.9261
 DEBUG:root:Dev accuracy: 0.9215253002826916
+DEBUG:root:[Batch]: Epoch: 0, Step: 0, loss: 3.930899, accuracy: 0.3224
+DEBUG:root:[Batch]: Epoch: 0, Step: 10, loss: 1.519912, accuracy: 0.5993
+DEBUG:root:[Batch]: Epoch: 0, Step: 20, loss: 1.070218, accuracy: 0.7168
+DEBUG:root:[Batch]: Epoch: 0, Step: 30, loss: 0.804695, accuracy: 0.7726
+DEBUG:root:[Batch]: Epoch: 0, Step: 40, loss: 0.636660, accuracy: 0.8340
+DEBUG:root:[Batch]: Epoch: 0, Step: 50, loss: 0.590950, accuracy: 0.8434
+DEBUG:root:[Batch]: Epoch: 0, Step: 60, loss: 0.487600, accuracy: 0.8796
+DEBUG:root:[Batch]: Epoch: 0, Step: 70, loss: 0.492872, accuracy: 0.8796
+DEBUG:root:[Batch]: Epoch: 0, Step: 80, loss: 0.380937, accuracy: 0.9121
+DEBUG:root:[Batch]: Epoch: 0, Step: 90, loss: 0.363337, accuracy: 0.9061
+DEBUG:root:[Batch]: Epoch: 0, Step: 100, loss: 0.344559, accuracy: 0.9076
+DEBUG:root:[Batch]: Epoch: 0, Step: 110, loss: 0.343245, accuracy: 0.9166
+DEBUG:root:[Batch]: Epoch: 0, Step: 120, loss: 0.259788, accuracy: 0.9255
+DEBUG:root:[Batch]: Epoch: 0, Step: 130, loss: 0.285534, accuracy: 0.9309
+DEBUG:root:[Batch]: Epoch: 0, Step: 140, loss: 0.276303, accuracy: 0.9322
+DEBUG:root:[Batch]: Epoch: 0, Step: 150, loss: 0.296879, accuracy: 0.9227
+DEBUG:root:[Batch]: Epoch: 0, Step: 0, loss: 3.931122, accuracy: 0.3247
+DEBUG:root:[Tune]: Epoch: 0, Step: 0, loss: 3.240878, accuracy: 0.2660
+DEBUG:root:[Batch]: Epoch: 0, Step: 10, loss: 1.465567, accuracy: 0.6214
+DEBUG:root:[Batch]: Epoch: 0, Step: 20, loss: 1.019866, accuracy: 0.7349
+DEBUG:root:[Batch]: Epoch: 0, Step: 30, loss: 0.764634, accuracy: 0.7833
+DEBUG:root:[Batch]: Epoch: 0, Step: 40, loss: 0.747738, accuracy: 0.7987
+DEBUG:root:[Batch]: Epoch: 0, Step: 50, loss: 0.592568, accuracy: 0.8458
+DEBUG:root:[Batch]: Epoch: 0, Step: 60, loss: 0.446166, accuracy: 0.8814
