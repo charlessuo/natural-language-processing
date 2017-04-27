@@ -37,15 +37,17 @@ class RNN:
             
             # (N * sentence_len, num_classes)
             self.logits_flat = tf.matmul(self.rnn_outputs_flat, W) + b
+            probs_flat = tf.nn.softmax(self.logits_flat)
+            self.probs = tf.reshape(probs_flat, [-1, sentence_len, num_classes])
+            self.predictions = tf.argmax(self.probs, 2, name='predictions')
+            self.predictions = tf.cast(self.predictions, tf.int32)
 
-            self.logits = tf.reshape(self.logits_flat, [-1, sentence_len, num_classes])
-#            log_likelihood, self.trans_params = tf.contrib.crf.crf_log_likelihood(self.logits, 
-#                                                                                  self.labels, 
-#                                                                                  self.seq_len)
-            log_likelihood = self.logits
-            self.trans_params = None
         with tf.name_scope('loss'):
-            self.loss = tf.reduce_mean(-log_likelihood)
+            labels_flat = tf.reshape(self.labels, shape=[-1]) # (N * sentence_len,)
+            unmasked_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits_flat, labels_flat)
+            mask = tf.sign(tf.cast(labels_flat, tf.float32))
+            masked_loss = tf.reshape(unmasked_loss * mask, shape=[-1, sentence_len])
+            self.loss = tf.reduce_mean(tf.reduce_sum(masked_loss, axis=1) / tf.cast(self.seq_len, tf.float32), name='loss')
         
     def train(self, train_x, train_y, seq_len, num_epoch=3, batch_size=64, tune_ratio=None):
         # set optimizer
@@ -67,13 +69,8 @@ class RNN:
         # start training 
         for batch in batch_pairs:
             batch_x, batch_y, batch_seq_len, tune_x, tune_y, tune_seq_len = batch
-            print(batch_seq_len.shape)
-            print(batch_seq_len)
-            q = self.sess.run(self.seq_len, feed_dict={self.seq_len: batch_seq_len})
-            print(q)
             _, loss = self.sess.run([train_op, self.loss], 
                                     feed_dict={self.inputs: batch_x, self.labels: batch_y, self.seq_len: batch_seq_len})
-            print(loss)
             if step % 10 == 0:
                 batch_acc = self.calculate_accuracy(batch_x, batch_y, batch_seq_len)
                 print('[Batch]: Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.4f}'.format(
@@ -130,32 +127,43 @@ class RNN:
                 yield batch_x, batch_y, batch_seq_len, tune_x, tune_y, tune_seq_len
 
     def predict(self, x, seq_len_):
-        logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
-                                                      feed_dict={self.inputs: x, self.seq_len: seq_len_})
-        N, sentence_len, _ = logits.shape
-        preds = np.zeros((N, sentence_len))
-        for i, logit_, length in zip(range(N), logits, seq_len):
-            # remove padding from the score and tag sequences
-            logit_ = logit_[:length]
-            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
-            preds[i, :length] = np.array(viterbi_seq)
-        return preds.astype(int)
+        preds = self.sess.run(self.predictions, feed_dict={self.inputs: x, self.seq_len: seq_len_})
+        return preds
 
     def calculate_accuracy(self, x, y, seq_len_):
-        logits, labels, seq_len, trans_params = self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
-                                                              feed_dict={self.inputs: x, self.labels: y, self.seq_len: seq_len_})
-
+        predictions = self.sess.run(self.predictions, feed_dict={self.inputs: x, self.seq_len: seq_len_})
         num_correct = 0
-        for logit_, y_, length in zip(logits, labels, seq_len):
-            # remove padding from the score and tag sequences
-            logit_ = logit_[:length]
-            y_ = y_[:length]
-            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
-            num_correct += np.sum(np.equal(viterbi_seq, y_))
-        return num_correct / np.sum(seq_len)
+        for i in range(len(predictions)):
+            for t in range(seq_len_[i]):
+                if predictions[i, t] == y[i, t]:
+                    num_correct += 1
+        return num_correct / np.sum(seq_len_)        
+#    def predict(self, x, seq_len_):
+#        logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
+#                                                      feed_dict={self.inputs: x, self.seq_len: seq_len_})
+#        N, sentence_len, _ = logits.shape
+#        preds = np.zeros((N, sentence_len))
+#        for i, logit_, length in zip(range(N), logits, seq_len):
+#            # remove padding from the score and tag sequences
+#            logit_ = logit_[:length]
+#            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
+#            preds[i, :length] = np.array(viterbi_seq)
+#        return preds.astype(int)
+#
+#    def calculate_accuracy(self, x, y, seq_len_):
+#        logits, labels, seq_len, trans_params = self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
+#                                                              feed_dict={self.inputs: x, self.labels: y, self.seq_len: seq_len_})
+#
+#        num_correct = 0
+#        for logit_, y_, length in zip(logits, labels, seq_len):
+#            # remove padding from the score and tag sequences
+#            logit_ = logit_[:length]
+#            y_ = y_[:length]
+#            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
+#            num_correct += np.sum(np.equal(viterbi_seq, y_))
+#        return num_correct / np.sum(seq_len)
 
-    def generate_submission(self, test_preds, test_x, seq_len_, id_to_class, filename='submission'):
-        test_seq_len = self.sess.run(self.seq_len, feed_dict={self.inputs: test_x, self.seq_len: seq_len_})
+    def generate_submission(self, test_preds, test_x, test_seq_len, id_to_class, filename='submission'):
         with open('./results/' + filename + '.csv', 'w') as f:
             f.write('id,tag\n')
             idx = 0

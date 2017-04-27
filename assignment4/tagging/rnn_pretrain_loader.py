@@ -60,12 +60,13 @@ class Loader:
 
     def _encode_labels(self, labels):
         class_to_id = {}
+        idx = 1
         for tags in labels:
             for tag in tags:
                 if tag not in class_to_id:
-                    class_to_id[tag] = 1
-                else:
-                    class_to_id[tag] += 1
+                    class_to_id[tag] = idx
+                    idx += 1
+        class_to_id['<PAD>'] = 0
         id_to_class = {v: k for k, v in class_to_id.items()}
         return class_to_id, id_to_class
 
