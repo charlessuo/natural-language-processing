@@ -7,7 +7,7 @@ from loader import Loader
 
 class MLP:
     def __init__(self, action_size, word_vocab_size, tag_vocab_size, label_vocab_size, 
-                       num_w=2, num_t=2, num_l=2, hidden_size=300, embed_size=50, batch_size=64):
+                       num_w=2, num_t=2, num_l=2, hidden_size=None, embed_size=50, batch_size=64):
         self.batch_size = batch_size
         self.embed_size = embed_size
         self.action_size = action_size
@@ -15,37 +15,46 @@ class MLP:
         self.num_t = num_t
         self.num_l = num_l
 
-        self.train_word = tf.placeholder(tf.int32, shape=[None, self.num_w], name='train_word')
-        self.train_tag = tf.placeholder(tf.int32, shape=[None, self.num_t], name='train_tag')
-        self.train_label = tf.placeholder(tf.int32, shape=[None, self.num_l], name='train_label')
-        self.train_y = tf.placeholder(tf.int32, shape=[None], name='train_y')
+        self.train_word = tf.placeholder(tf.int32, shape=[None, self.num_w])
+        self.train_tag = tf.placeholder(tf.int32, shape=[None, self.num_t])
+        self.train_label = tf.placeholder(tf.int32, shape=[None, self.num_l])
+        self.train_y = tf.placeholder(tf.int32, shape=[None])
         self.sess = tf.Session()
 
         with tf.name_scope('word_embedding'), tf.device('/cpu:0'):
-            embeddings = tf.Variable(tf.random_uniform([word_vocab_size, self.embed_size], -0.01, 0.01), name='embeddings')
-            embedded_word_stacked = tf.nn.embedding_lookup(embeddings, self.train_word, name='embedded_word')
+            embeddings = tf.Variable(tf.random_uniform(
+                             [word_vocab_size, self.embed_size], -0.1, 0.1))
+            embedded_word_stacked = tf.nn.embedding_lookup(embeddings, self.train_word)
             word_stack = []
             for i in range(self.num_w):
-                word_stack.append(tf.slice(embedded_word_stacked, [0, i, 0], [-1, 1, self.embed_size]))
-            embedded_word = tf.reshape(tf.concat(2, word_stack), [-1, self.embed_size * self.num_w])
+                word_stack.append(tf.slice(embedded_word_stacked, [0, i, 0], 
+                                           [-1, 1, self.embed_size]))
+            embedded_word = tf.reshape(tf.concat(2, word_stack), 
+                                       [-1, self.embed_size * self.num_w])
 
         with tf.name_scope('tag_embedding'), tf.device('/cpu:0'):
-            embeddings = tf.Variable(tf.random_uniform([tag_vocab_size, self.embed_size], -0.01, 0.01), name='embeddings')
-            embedded_tag_stacked = tf.nn.embedding_lookup(embeddings, self.train_tag, name='embedded_tag')
+            embeddings = tf.Variable(tf.random_uniform(
+                             [tag_vocab_size, self.embed_size], -0.1, 0.1))
+            embedded_tag_stacked = tf.nn.embedding_lookup(embeddings, self.train_tag)
             tag_stack = []
             for i in range(self.num_t):
-                tag_stack.append(tf.slice(embedded_tag_stacked, [0, i, 0], [-1, 1, self.embed_size]))
-            embedded_tag = tf.reshape(tf.concat(2, tag_stack), [-1, self.embed_size * self.num_t])
+                tag_stack.append(tf.slice(embedded_tag_stacked, [0, i, 0], 
+                                          [-1, 1, self.embed_size]))
+            embedded_tag = tf.reshape(tf.concat(2, tag_stack), 
+                                      [-1, self.embed_size * self.num_t])
 
         with tf.name_scope('label_embedding'), tf.device('/cpu:0'):
-            embeddings = tf.Variable(tf.random_uniform([label_vocab_size, self.embed_size], -0.01, 0.01), name='embeddings')
-            embedded_label_stacked = tf.nn.embedding_lookup(embeddings, self.train_label, name='embedded_label')
+            embeddings = tf.Variable(tf.random_uniform(
+                             [label_vocab_size, self.embed_size], -0.1, 0.1))
+            embedded_label_stacked = tf.nn.embedding_lookup(embeddings, self.train_label)
             label_stack = []
             for i in range(self.num_l):
-                label_stack.append(tf.slice(embedded_label_stacked, [0, i, 0], [-1, 1, self.embed_size]))
-            embedded_label = tf.reshape(tf.concat(2, label_stack), [-1, self.embed_size * self.num_l])
+                label_stack.append(tf.slice(embedded_label_stacked, [0, i, 0], 
+                                            [-1, 1, self.embed_size]))
+            embedded_label = tf.reshape(tf.concat(2, label_stack), 
+                                        [-1, self.embed_size * self.num_l])
 
-        self.inputs = tf.concat(1, [embedded_word, embedded_tag, embedded_label], name='inputs')
+        self.inputs = tf.concat(1, [embedded_word, embedded_tag, embedded_label])
 
         with tf.name_scope('hidden_layer'):
             input_dim = self.embed_size * (self.num_w + self.num_t + self.num_l)
@@ -64,15 +73,16 @@ class MLP:
 
         with tf.name_scope('loss'):
             one_hot_y = tf.one_hot(self.train_y, self.action_size)
-            self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.scores, one_hot_y), name='loss')
+            self.loss = tf.reduce_mean(
+                            tf.nn.softmax_cross_entropy_with_logits(self.scores, one_hot_y))
 
         with tf.variable_scope('accuracy'):
             num_correct = tf.equal(self.predictions, tf.argmax(one_hot_y, 1))
-            self.accuracy = tf.reduce_mean(tf.cast(num_correct, tf.float32), name='accuracy')
+            self.accuracy = tf.reduce_mean(tf.cast(num_correct, tf.float32))
 
-    def train(self, train_x, train_y, num_epoch=5):
+    def train(self, train_x, train_y, num_epoch=3):
         batch_pairs = self._extract_batch(train_x, train_y, num_epoch)
-        optimizer = tf.train.AdamOptimizer(0.1)
+        optimizer = tf.train.AdagradOptimizer(0.01)
         train_op = optimizer.minimize(self.loss)
 
         self.sess.run(tf.global_variables_initializer())
@@ -89,8 +99,9 @@ class MLP:
                                                     self.train_label: batch_label, 
                                                     self.train_y: batch_y})
             if step % 100 == 0:
-                print('Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.4f}'.format(
-                    int(step / batches_per_epoch), step, loss, acc))
+                print('[Train]: Epoch: {}, Step: {}'
+                      ', loss: {:.6f}, accuracy: {:.4f}'.format(
+                      int(step / batches_per_epoch), step, loss, acc))
             step += 1
 
     def _extract_batch(self, x, y, num_epoch, shuffle=True):
@@ -144,10 +155,10 @@ class MLP:
                 b_word, b_tag, b_label, b_id, _ = b
                 b_word_idx, b_tag_idx, b_label_idx = \
                     self._map_to_idx(b, word_vocab, tag_vocab, label_vocab)
-                action_idx = self.sess.run(self.predictions, 
-                                           feed_dict={self.train_word: [[s_word_idx, b_word_idx]], 
-                                                      self.train_tag: [[s_tag_idx, b_tag_idx]], 
-                                                      self.train_label: [[s_label_idx, b_label_idx]]})
+                action_idx = self.sess.run(self.predictions, feed_dict={
+                                 self.train_word: [[s_word_idx, b_word_idx]], 
+                                 self.train_tag: [[s_tag_idx, b_tag_idx]], 
+                                 self.train_label: [[s_label_idx, b_label_idx]]})
                 action, label = rev_action_space[int(action_idx)]
 
                 if action == 'LEFT_ARC' and s_word != '<ROOT>':
@@ -156,7 +167,8 @@ class MLP:
                 elif action == 'RIGHT_ARC':
                     buffer_.appendleft(s)
                     result.append([int(b_id), b_word, b_tag, s_id, label])
-                elif action == 'SHIFT':
+                else:
+                    # 'SHIFT'
                     stack.append(s)
                     stack.append(b)
 
@@ -169,7 +181,7 @@ class MLP:
             results.append(sorted(result))
 
             if i % 500 == 0:
-                print(str(i) + 'th sentence')
+                print('[Parse]: {} sentences parsed.'.format(i))
         return results
 
     def _map_to_idx(self, node, word_vocab, tag_vocab, label_vocab):
@@ -193,9 +205,12 @@ def write_to_conll(results, filename='result.conll'):
 
 
 if __name__ == '__main__':
+    print('Start training.')
+    start = time.time()
     loader = Loader()
     train_x, train_y = loader.load_train_data()
     dev_sentences = loader.load_dev_data()
+    print('Done loading in {:.2f} min'.format((time.time() - start) / 60))
     print('Dev number of sentences:', len(dev_sentences))
 #    test_sentences = loader.load_test_data()
     
@@ -210,11 +225,18 @@ if __name__ == '__main__':
     rev_action_space = loader.rev_action_space
 
     mlp = MLP(action_size, word_vocab_size, tag_vocab_size, label_vocab_size,
-              num_w=2, num_t=2, hidden_size=200, embed_size=50, batch_size=64)
-    start = time.time()
+              num_w=2, num_t=2, hidden_size=300, embed_size=50, batch_size=64)
+
     print('Start training.')
+    start = time.time()
     mlp.train(train_x, train_y, num_epoch=1)
     print('Done training in {:.2f} min'.format((time.time() - start) / 60))
-    results = mlp.parse(dev_sentences, word_vocab, tag_vocab, label_vocab, rev_action_space)
+
+    print('Start parsing using MLP.')
+    start = time.time()
+    results = mlp.parse(dev_sentences[:3000], 
+                        word_vocab, tag_vocab, label_vocab, rev_action_space)
+    print('Done parsing in {:.2f} min'.format((time.time() - start) / 60))
+    
     write_to_conll(results)
 
