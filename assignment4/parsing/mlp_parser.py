@@ -4,10 +4,12 @@ from collections import deque
 import time
 from loader import Loader
 
+filename = 'test'
 
 class MLP:
     def __init__(self, action_size, word_vocab_size, tag_vocab_size, label_vocab_size, 
-                       num_w=2, num_t=2, num_l=2, hidden_size=None, embed_size=50, batch_size=64):
+                       num_w=2, num_t=2, num_l=2, 
+                       hidden_size=300, embed_size=50, batch_size=64):
         self.batch_size = batch_size
         self.embed_size = embed_size
         self.action_size = action_size
@@ -136,6 +138,10 @@ class MLP:
                 yield batch_x, batch_y
 
     def parse(self, sentences, word_vocab, tag_vocab, label_vocab, rev_action_space):
+        '''
+        Run parsing with arc-standard. The sentences are processed one-by-one without
+        batching. When the buffer becomes empty, check whether the stack is empty. 
+        '''
         results = []
         for i, sentence in enumerate(sentences):
             result = []
@@ -194,7 +200,7 @@ class MLP:
         label_idx = label_vocab[label]
         return word_idx, tag_idx, label_idx
 
-def write_to_conll(results, filename='result.conll'):
+def write_to_conll(results, filename=filename):
     with open('./results/' + filename, 'w') as f:
         for result in results:
             for item in result:
@@ -205,7 +211,7 @@ def write_to_conll(results, filename='result.conll'):
 
 
 if __name__ == '__main__':
-    print('Start training.')
+    print('Start loading data.')
     start = time.time()
     loader = Loader()
     train_x, train_y = loader.load_train_data()
@@ -224,8 +230,9 @@ if __name__ == '__main__':
     label_vocab = loader.label_vocab
     rev_action_space = loader.rev_action_space
 
+    # MLP
     mlp = MLP(action_size, word_vocab_size, tag_vocab_size, label_vocab_size,
-              num_w=2, num_t=2, hidden_size=300, embed_size=50, batch_size=64)
+              num_w=2, num_t=2, hidden_size=200, embed_size=50, batch_size=64)
 
     print('Start training.')
     start = time.time()
@@ -234,9 +241,10 @@ if __name__ == '__main__':
 
     print('Start parsing using MLP.')
     start = time.time()
-    results = mlp.parse(dev_sentences[:3000], 
-                        word_vocab, tag_vocab, label_vocab, rev_action_space)
+    results = mlp.parse(dev_sentences, word_vocab, tag_vocab, 
+                        label_vocab, rev_action_space)
     print('Done parsing in {:.2f} min'.format((time.time() - start) / 60))
     
+    # write to CoNLL format for evaluation    
     write_to_conll(results)
 

@@ -42,9 +42,8 @@ class RNN:
             self.logits_flat = tf.matmul(self.rnn_outputs_flat, W) + b
 
             self.logits = tf.reshape(self.logits_flat, [-1, sentence_len, num_classes])
-            log_likelihood, self.trans_params = tf.contrib.crf.crf_log_likelihood(self.logits, 
-                                                                                  self.labels, 
-                                                                                  self.seq_len)
+            log_likelihood, self.trans_params = \
+                tf.contrib.crf.crf_log_likelihood(self.logits, self.labels, self.seq_len)
 
         with tf.name_scope('loss'):
             self.loss = tf.reduce_mean(-log_likelihood)
@@ -171,7 +170,7 @@ if __name__ == '__main__':
     rnn = RNN(vocab_size=len(id_to_word), 
               num_classes=len(id_to_class), 
               sentence_len=max_len, 
-              embed_size=128, 
+              embed_size=100, 
               cell_size=128,
               num_layers=1)
     rnn.train(train_x, train_y, num_epoch=3, batch_size=64, tune_ratio=None)

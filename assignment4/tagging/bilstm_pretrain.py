@@ -46,7 +46,8 @@ class RNN:
             unmasked_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits_flat, labels_flat)
             mask = tf.sign(tf.cast(labels_flat, tf.float32))
             masked_loss = tf.reshape(unmasked_loss * mask, shape=[-1, sentence_len])
-            self.loss = tf.reduce_mean(tf.reduce_sum(masked_loss, axis=1) / tf.cast(self.seq_len, tf.float32), name='loss')
+            self.loss = tf.reduce_mean(
+                            tf.reduce_sum(masked_loss, axis=1) / tf.cast(self.seq_len, tf.float32))
         
     def train(self, train_x, train_y, seq_len, num_epoch=3, batch_size=64, tune_ratio=None):
         # set optimizer
@@ -163,7 +164,8 @@ if __name__ == '__main__':
               embed_size=100, 
               cell_size=128,
               num_layers=1)
-    rnn.train(train_x, train_y, train_seq_len, num_epoch=2, batch_size=64, tune_ratio=None)
+    rnn.train(train_x, train_y, train_seq_len, 
+              num_epoch=2, batch_size=64, tune_ratio=None)
     dev_accuracy = rnn.calculate_accuracy(dev_x, dev_y, dev_seq_len)
     print('Dev accuracy:', dev_accuracy)
     logging.debug('Dev accuracy: {}'.format(dev_accuracy))
