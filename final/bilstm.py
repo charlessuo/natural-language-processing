@@ -59,7 +59,7 @@ class BiLSTM:
 
             # (N * sentence_len, 2 * cell_size)
             self.rnn_outputs_flat = tf.reshape(self.rnn_output, shape=[-1, 2 * cell_size])
-
+        '''
         with tf.name_scope('output-layer'):
             W = tf.Variable(tf.truncated_normal([2 * cell_size, num_classes], 
                                                 stddev=1.0 / np.sqrt(num_classes)), name='W')
@@ -81,6 +81,21 @@ class BiLSTM:
             masked_loss = tf.reshape(unmasked_loss * mask, shape=[-1, sentence_len])
             self.loss = tf.reduce_mean(tf.reduce_sum(masked_loss, axis=1) / tf.cast(self.seq_len, tf.float32), name='loss')
 #            self.loss += 0.01 * l2_loss
+        '''
+        with tf.name_scope('output-layer'):
+            W = tf.Variable(tf.truncated_normal([2 * cell_size, num_classes],
+                                                stddev=1.0 / np.sqrt(num_classes)), name='W')
+            b = tf.Variable(tf.zeros([num_classes]), name='b')
+
+            # (N * sentence_len, num_classes)
+            self.logits_flat = tf.matmul(self.rnn_outputs_flat, W) + b
+
+            self.logits = tf.reshape(self.logits_flat, [-1, sentence_len, num_classes])
+            log_likelihood, self.trans_params = \
+                tf.contrib.crf.crf_log_likelihood(self.logits, self.labels, self.seq_len)
+
+        with tf.name_scope('loss'):
+            self.loss = tf.reduce_mean(-log_likelihood)
         
     def train(self, train_x, train_pos, train_orth, train_y, id_to_class, num_epoch=3, batch_size=64):
         # set optimizer
@@ -135,24 +150,38 @@ class BiLSTM:
         pass
 
     def predict(self, x, pos, orth):
-        preds = self.sess.run(self.predictions, feed_dict={self.inputs: x, 
-                                                           self.pos_inputs: pos,
-                                                           self.orth_inputs: orth})
+#        preds = self.sess.run(self.predictions, feed_dict={self.inputs: x, 
+#                                                           self.pos_inputs: pos,
+#                                                           self.orth_inputs: orth})
+        logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
+                                                      feed_dict={self.inputs: x, self.pos_inputs: pos, self.orth_inputs: orth})
+        N, sentence_len, _ = logits.shape
+        preds = np.zeros((N, sentence_len))
+        for i, logit_, length in zip(range(N), logits, seq_len):
+            # remove padding from the score and tag sequences
+            logit_ = logit_[:length]
+            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
+            preds[i, :length] = np.array(viterbi_seq)
+        preds = preds.astype(int)
         return preds
 
     def calculate_f1(self, x, pos, orth, y, id_to_class):
-        predictions, seq_len = \
-            self.sess.run([self.predictions, self.seq_len], 
-                          feed_dict={self.inputs: x, 
-                                     self.pos_inputs: pos,
-                                     self.orth_inputs: orth})
+        logits, labels, seq_len, trans_params = self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
+                                                              feed_dict={self.inputs: x, 
+                                                                         self.pos_inputs: pos, 
+                                                                         self.orth_inputs: orth, 
+                                                                         self.labels: y})
         true_pos = 0
         false_pos = 0
-        false_neg = 0
-        for i in range(len(predictions)):
-            for t in range(seq_len[i]):
-                y_ = id_to_class[y[i, t]]
-                p = id_to_class[predictions[i, t]]
+        false_neg = 0        
+        for logit_, y_seq, length in zip(logits, labels, seq_len):
+            # remove padding from the score and tag sequences
+            logit_ = logit_[:length]
+            y_seq = y_seq[:length]
+            viterbi_seq, _ = tf.contrib.crf.viterbi_decode(logit_, trans_params)
+            for y_id, p_id in zip(y_seq, viterbi_seq):
+                y_ = id_to_class[y_id]
+                p = id_to_class[p_id]
                 if y_ != 'O':
                     if p == y_:
                         true_pos += 1
@@ -160,11 +189,35 @@ class BiLSTM:
                         false_neg += 1
                 elif p != y_:
                     false_pos += 1
-        
         prec = true_pos / (true_pos + false_pos) if true_pos + false_pos != 0 else 0
         recall = true_pos / (true_pos + false_neg) if true_pos + false_neg != 0 else 0
         f1 = 2 * prec * recall / (prec + recall) if prec + recall != 0 else 0
-        return f1, prec, recall
+        return f1, prec, recall            
+
+#        predictions, seq_len = self.sess.run([self.predictions, self.seq_len], 
+#                                             feed_dict={self.inputs: x, 
+#                                                        self.pos_inputs: pos,
+#                                                        self.orth_inputs: orth})
+#
+#        true_pos = 0
+#        false_pos = 0
+#        false_neg = 0
+#        for i in range(len(predictions)):
+#            for t in range(seq_len[i]):
+#                y_ = id_to_class[y[i, t]]
+#                p = id_to_class[predictions[i, t]]
+#                if y_ != 'O':
+#                    if p == y_:
+#                        true_pos += 1
+#                    elif p == 'O':
+#                        false_neg += 1
+#                elif p != y_:
+#                    false_pos += 1
+#        
+#        prec = true_pos / (true_pos + false_pos) if true_pos + false_pos != 0 else 0
+#        recall = true_pos / (true_pos + false_neg) if true_pos + false_neg != 0 else 0
+#        f1 = 2 * prec * recall / (prec + recall) if prec + recall != 0 else 0
+#        return f1, prec, recall
 
     def generate_submission(self, test_preds, test_x, id_to_class, filename):
         test_seq_len = self.sess.run(self.seq_len, feed_dict={self.inputs: test_x})
@@ -219,8 +272,8 @@ if __name__ == '__main__':
     bilstm.generate_submission(dev_preds, dev_x, id_to_class, 
                                filename=(FILENAME + '.dev'))
 
-    test_preds = bilstm.predict(test_x, test_pos, test_orth)
-    bilstm.generate_submission(test_preds, test_x, id_to_class, 
-                               filename=(FILENAME + '.test'))
+#    test_preds = bilstm.predict(test_x, test_pos, test_orth)
+#    bilstm.generate_submission(test_preds, test_x, id_to_class, 
+#                               filename=(FILENAME + '.test'))
 
 
