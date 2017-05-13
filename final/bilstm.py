@@ -7,7 +7,7 @@ from orth_loader import OrthLoader
 
 
 NUM_EPOCH       = 7
-EMBED_SIZE      = 64
+EMBED_SIZE      = 128
 POS_EMBED_SIZE  = 32
 ORTH_EMBED_SIZE = 32
 CELL_SIZE       = 64
@@ -59,29 +59,7 @@ class BiLSTM:
 
             # (N * sentence_len, 2 * cell_size)
             self.rnn_outputs_flat = tf.reshape(self.rnn_output, shape=[-1, 2 * cell_size])
-        '''
-        with tf.name_scope('output-layer'):
-            W = tf.Variable(tf.truncated_normal([2 * cell_size, num_classes], 
-                                                stddev=1.0 / np.sqrt(num_classes)), name='W')
-            b = tf.Variable(tf.zeros([num_classes]), name='b')
-            l2_loss += tf.nn.l2_loss(W)
-            l2_loss += tf.nn.l2_loss(b)
 
-            # (N * sentence_len, num_classes)
-            self.logits_flat = tf.matmul(self.rnn_outputs_flat, W) + b
-            probs_flat = tf.nn.softmax(self.logits_flat)
-            self.probs = tf.reshape(probs_flat, [-1, sentence_len, num_classes])
-            self.predictions = tf.argmax(self.probs, 2, name='predictions')
-            self.predictions = tf.cast(self.predictions, tf.int32)
-
-        with tf.name_scope('loss'):
-            labels_flat = tf.reshape(self.labels, shape=[-1]) # (N * sentence_len,)
-            unmasked_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(self.logits_flat, labels_flat)
-            mask = tf.sign(tf.cast(labels_flat, tf.float32))
-            masked_loss = tf.reshape(unmasked_loss * mask, shape=[-1, sentence_len])
-            self.loss = tf.reduce_mean(tf.reduce_sum(masked_loss, axis=1) / tf.cast(self.seq_len, tf.float32), name='loss')
-#            self.loss += 0.01 * l2_loss
-        '''
         with tf.name_scope('output-layer'):
             W = tf.Variable(tf.truncated_normal([2 * cell_size, num_classes],
                                                 stddev=1.0 / np.sqrt(num_classes)), name='W')
@@ -150,11 +128,9 @@ class BiLSTM:
         pass
 
     def predict(self, x, pos, orth):
-#        preds = self.sess.run(self.predictions, feed_dict={self.inputs: x, 
-#                                                           self.pos_inputs: pos,
-#                                                           self.orth_inputs: orth})
-        logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
-                                                      feed_dict={self.inputs: x, self.pos_inputs: pos, self.orth_inputs: orth})
+        logits, seq_len, trans_params = \
+            self.sess.run([self.logits, self.seq_len, self.trans_params],
+                          feed_dict={self.inputs: x, self.pos_inputs: pos, self.orth_inputs: orth})
         N, sentence_len, _ = logits.shape
         preds = np.zeros((N, sentence_len))
         for i, logit_, length in zip(range(N), logits, seq_len):
@@ -166,11 +142,10 @@ class BiLSTM:
         return preds
 
     def calculate_f1(self, x, pos, orth, y, id_to_class):
-        logits, labels, seq_len, trans_params = self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
-                                                              feed_dict={self.inputs: x, 
-                                                                         self.pos_inputs: pos, 
-                                                                         self.orth_inputs: orth, 
-                                                                         self.labels: y})
+        logits, labels, seq_len, trans_params = \
+            self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
+                           feed_dict={self.inputs: x, self.pos_inputs: pos, 
+                                      self.orth_inputs: orth, self.labels: y})
         true_pos = 0
         false_pos = 0
         false_neg = 0        
@@ -193,31 +168,6 @@ class BiLSTM:
         recall = true_pos / (true_pos + false_neg) if true_pos + false_neg != 0 else 0
         f1 = 2 * prec * recall / (prec + recall) if prec + recall != 0 else 0
         return f1, prec, recall            
-
-#        predictions, seq_len = self.sess.run([self.predictions, self.seq_len], 
-#                                             feed_dict={self.inputs: x, 
-#                                                        self.pos_inputs: pos,
-#                                                        self.orth_inputs: orth})
-#
-#        true_pos = 0
-#        false_pos = 0
-#        false_neg = 0
-#        for i in range(len(predictions)):
-#            for t in range(seq_len[i]):
-#                y_ = id_to_class[y[i, t]]
-#                p = id_to_class[predictions[i, t]]
-#                if y_ != 'O':
-#                    if p == y_:
-#                        true_pos += 1
-#                    elif p == 'O':
-#                        false_neg += 1
-#                elif p != y_:
-#                    false_pos += 1
-#        
-#        prec = true_pos / (true_pos + false_pos) if true_pos + false_pos != 0 else 0
-#        recall = true_pos / (true_pos + false_neg) if true_pos + false_neg != 0 else 0
-#        f1 = 2 * prec * recall / (prec + recall) if prec + recall != 0 else 0
-#        return f1, prec, recall
 
     def generate_submission(self, test_preds, test_x, id_to_class, filename):
         test_seq_len = self.sess.run(self.seq_len, feed_dict={self.inputs: test_x})
