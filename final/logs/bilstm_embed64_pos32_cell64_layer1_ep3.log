@@ -1,0 +1,24 @@
+DEBUG:root:[Batch]: Epoch: 0, Step: 0, loss: 1.372805, F1: 0.0000
+DEBUG:root:[Batch]: Epoch: 0, Step: 10, loss: 0.221142, F1: 0.0000
+DEBUG:root:[Batch]: Epoch: 0, Step: 20, loss: 0.318151, F1: 0.1250
+DEBUG:root:[Batch]: Epoch: 0, Step: 30, loss: 0.127922, F1: 0.0833
+DEBUG:root:[Batch]: Epoch: 0, Step: 40, loss: 0.161378, F1: 0.2917
+DEBUG:root:[Batch]: Epoch: 0, Step: 50, loss: 0.204632, F1: 0.1905
+DEBUG:root:[Batch]: Epoch: 0, Step: 60, loss: 0.205217, F1: 0.3830
+DEBUG:root:[Batch]: Epoch: 0, Step: 70, loss: 0.095051, F1: 0.5909
+DEBUG:root:[Batch]: Epoch: 1, Step: 80, loss: 0.028748, F1: 0.9375
+DEBUG:root:[Batch]: Epoch: 1, Step: 90, loss: 0.048272, F1: 0.7778
+DEBUG:root:[Batch]: Epoch: 1, Step: 100, loss: 0.047473, F1: 0.9217
+DEBUG:root:[Batch]: Epoch: 1, Step: 110, loss: 0.083214, F1: 0.7576
+DEBUG:root:[Batch]: Epoch: 1, Step: 120, loss: 0.030233, F1: 0.8750
+DEBUG:root:[Batch]: Epoch: 1, Step: 130, loss: 0.097768, F1: 0.8491
+DEBUG:root:[Batch]: Epoch: 1, Step: 140, loss: 0.053342, F1: 0.9057
+DEBUG:root:[Batch]: Epoch: 2, Step: 150, loss: 0.025449, F1: 0.9545
+DEBUG:root:[Batch]: Epoch: 2, Step: 160, loss: 0.068013, F1: 0.8952
+DEBUG:root:[Batch]: Epoch: 2, Step: 170, loss: 0.012474, F1: 0.9841
+DEBUG:root:[Batch]: Epoch: 2, Step: 180, loss: 0.060150, F1: 0.8462
+DEBUG:root:[Batch]: Epoch: 2, Step: 190, loss: 0.025834, F1: 0.9362
+DEBUG:root:[Batch]: Epoch: 2, Step: 200, loss: 0.023512, F1: 0.9362
+DEBUG:root:[Batch]: Epoch: 2, Step: 210, loss: 0.030928, F1: 0.9552
+DEBUG:root:[Batch]: Epoch: 2, Step: 220, loss: 0.012879, F1: 0.9600
+DEBUG:root:[Dev]: F1 = 0.3738, Prec = 0.5161, Recall = 0.2930

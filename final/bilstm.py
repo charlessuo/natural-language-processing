@@ -4,20 +4,36 @@ import numpy as np
 import logging
 from loader import Loader
 
-FILENAME = 'sample'
+NUM_EPOCH      = 7
+CELL_SIZE      = 64
+EMBED_SIZE     = 64
+POS_EMBED_SIZE = 32
+BATCH_SIZE     = 32
+NUM_LAYERS     = 1
+
+FILENAME = 'bilstm_embed{0}_pos{1}_cell{2}_layer{3}_ep{4}'.format(
+               EMBED_SIZE, POS_EMBED_SIZE, CELL_SIZE, NUM_LAYERS, NUM_EPOCH)
 logging.basicConfig(filename='./logs/{}.log'.format(FILENAME), level=logging.DEBUG)
 
 
 class RNN:
-    def __init__(self, vocab_size, num_classes, sentence_len, embed_size, cell_size, num_layers):
+    def __init__(self, vocab_size, pos_vocab_size, num_classes, sentence_len, 
+                 embed_size, pos_embed_size, cell_size, num_layers):
         self.sess = tf.Session()
         self.inputs = tf.placeholder(tf.int32, [None, sentence_len], name='inputs')
+        self.pos_inputs = tf.placeholder(tf.int32, [None, sentence_len], name='pos_inputs')
         self.labels = tf.placeholder(tf.int32, [None, sentence_len], name='labels')
         self.seq_len = tf.reduce_sum(tf.cast(self.inputs > 0, tf.int32), axis=1)
 
-        with tf.name_scope('embedding-layer'), tf.device('/cpu:0'):
-            self.embeddings = tf.Variable(tf.random_uniform([vocab_size, embed_size], -1.0, 1.0), name='embeddings')
+        with tf.name_scope('word-embedding-layer'), tf.device('/cpu:0'):
+            self.embeddings = tf.Variable(tf.random_uniform([vocab_size, embed_size], -0.1, 0.1), name='embeddings')
             self.embedded_x = tf.nn.embedding_lookup(self.embeddings, self.inputs, name='embedded_x')
+
+        with tf.name_scope('pos-embedding-layer'), tf.device('/cpu:0'):
+            self.embeddings = tf.Variable(tf.random_uniform([pos_vocab_size, pos_embed_size], -0.1, 0.1), name='embeddings')
+            self.embedded_pos = tf.nn.embedding_lookup(self.embeddings, self.pos_inputs, name='embedded_pos')
+
+        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos])
         
         with tf.name_scope('rnn-layer'):
             cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True)
@@ -27,7 +43,7 @@ class RNN:
                                                               cell,
                                                               dtype=tf.float32,
                                                               sequence_length=self.seq_len,
-                                                              inputs=self.embedded_x)
+                                                              inputs=self.concat_input)
             self.rnn_output = tf.concat(2, outputs, name='rnn_output')
 
             # (N * sentence_len, 2 * cell_size)
@@ -52,7 +68,7 @@ class RNN:
             masked_loss = tf.reshape(unmasked_loss * mask, shape=[-1, sentence_len])
             self.loss = tf.reduce_mean(tf.reduce_sum(masked_loss, axis=1) / tf.cast(self.seq_len, tf.float32), name='loss')
         
-    def train(self, train_x, train_y, id_to_class, num_epoch=3, batch_size=64, tune_ratio=None):
+    def train(self, train_x, train_x_pos, train_y, id_to_class, num_epoch=3, batch_size=64, tune_ratio=None):
         # set optimizer
         optimizer = tf.train.AdamOptimizer(0.01)
 
@@ -64,18 +80,18 @@ class RNN:
         self.sess.run(tf.global_variables_initializer())
 
         # prepare batches to train on
-        batch_pairs = self._extract_batch(train_x, train_y, num_epoch, batch_size, tune_ratio, shuffle=True)
+        batch_pairs = self._extract_batch(train_x, train_x_pos, train_y, num_epoch, batch_size, tune_ratio, shuffle=True)
         batches_per_epoch = int((len(train_x) - 1) / batch_size) + 1
         step = 0
         tune_info = []
 
         # start training 
         for batch in batch_pairs:
-            batch_x, batch_y, tune_x, tune_y = batch
+            batch_x, batch_x_pos, batch_y, tune_x, tune_y = batch
             _, loss = self.sess.run([train_op, self.loss], 
-                                    feed_dict={self.inputs: batch_x, self.labels: batch_y})
+                                    feed_dict={self.inputs: batch_x, self.pos_inputs: batch_x_pos, self.labels: batch_y})
             if step % 10 == 0:
-                batch_f1, _, _ = self.calculate_f1(batch_x, batch_y, id_to_class)
+                batch_f1, _, _ = self.calculate_f1(batch_x, batch_x_pos, batch_y, id_to_class)
                 print('[Batch]: Epoch: {}, Step: {}, loss: {:.6f}, F1: {:.4f}'.format(
                       int(step / batches_per_epoch), step, loss, batch_f1))
                 logging.debug('[Batch]: Epoch: {}, Step: {}, loss: {:.6f}, F1: {:.4f}'.format(
@@ -91,8 +107,8 @@ class RNN:
                 tune_info.append(tune_loss)
             step += 1
 
-    def _extract_batch(self, train_x, train_y, num_epoch, batch_size, tune_ratio, shuffle=True):
-        data = np.hstack((train_x, train_y))
+    def _extract_batch(self, train_x, train_x_pos, train_y, num_epoch, batch_size, tune_ratio, shuffle=True):
+        data = np.hstack((train_x, train_x_pos, train_y))
         if tune_ratio:
             tune_size = int(data.shape[0] * tune_ratio)
         else:
@@ -122,15 +138,17 @@ class RNN:
                 start_idx = batch_num * batch_size
                 end_idx = min((batch_num + 1) * batch_size, train_size)
                 batch_x = shuffled_data[start_idx:end_idx][:, :train_x.shape[1]]
-                batch_y = shuffled_data[start_idx:end_idx][:, train_x.shape[1]:]
-                yield batch_x, batch_y, tune_x, tune_y
+                batch_x_pos = shuffled_data[start_idx:end_idx][:, train_x.shape[1]:train_x.shape[1] + train_x_pos.shape[1]]
+                batch_y = shuffled_data[start_idx:end_idx][:, train_x.shape[1] + train_x_pos.shape[1]:]
+                yield batch_x, batch_x_pos, batch_y, tune_x, tune_y
 
-    def predict(self, x):
-        preds = self.sess.run(self.predictions, feed_dict={self.inputs: x})
+    def predict(self, x, x_pos):
+        preds = self.sess.run(self.predictions, feed_dict={self.inputs: x, self.pos_inputs: x_pos})
         return preds
 
-    def calculate_f1(self, x, y, id_to_class):
-        predictions, seq_len = self.sess.run([self.predictions, self.seq_len], feed_dict={self.inputs: x})
+    def calculate_f1(self, x, x_pos, y, id_to_class):
+        predictions, seq_len = self.sess.run([self.predictions, self.seq_len], 
+                                             feed_dict={self.inputs: x, self.pos_inputs: x_pos})
         true_pos = 0
         false_pos = 0
         false_neg = 0
@@ -164,31 +182,44 @@ class RNN:
 
 if __name__ == '__main__':
     loader = Loader()
-    train_x, train_y = loader.load_data('train')
-    dev_x, dev_y = loader.load_data('dev')
-    test_x, _ = loader.load_data('test')
+    train_x, train_x_pos, train_y = loader.load_data('train')
+    dev_x, dev_x_pos, dev_y = loader.load_data('dev')
+    test_x, test_x_pos, _ = loader.load_data('test')
 
     id_to_word = loader.id_to_word
     id_to_class = loader.id_to_class
+    id_to_pos = loader.id_to_pos
     max_len = loader.max_len
 
     rnn = RNN(vocab_size=len(id_to_word), 
+              pos_vocab_size=len(id_to_pos),
               num_classes=len(id_to_class), 
               sentence_len=max_len, 
-              embed_size=128, 
-              cell_size=64,
-              num_layers=1)
-    rnn.train(train_x, train_y, id_to_class, num_epoch=5, batch_size=32, tune_ratio=None)
-    dev_f1, dev_prec, dev_rec = rnn.calculate_f1(dev_x, dev_y, id_to_class)
-    print('[Dev]: F1 = {:.4f}, Prec = {:.4f}, Recall = {:.4f}'.format(dev_f1, dev_prec, dev_rec))
-    logging.debug('[Dev]: F1 = {:.4f}, Prec = {:.4f}, Recall = {:.4f}'.format(dev_f1, dev_prec, dev_rec))
+              embed_size=EMBED_SIZE, 
+              pos_embed_size=POS_EMBED_SIZE,
+              cell_size=CELL_SIZE,
+              num_layers=NUM_LAYERS)
+    rnn.train(train_x, train_x_pos, train_y, id_to_class, 
+              num_epoch=NUM_EPOCH, batch_size=BATCH_SIZE, tune_ratio=None)
+    dev_f1, dev_prec, dev_rec = \
+        rnn.calculate_f1(dev_x, dev_x_pos, dev_y, id_to_class)
+
+    print('[Dev]: F1 = {:.4f}, Prec = {:.4f}, Recall = {:.4f}'
+          .format(dev_f1, dev_prec, dev_rec))
+    logging.debug('[Dev]: F1 = {:.4f}, Prec = {:.4f}, Recall = {:.4f}'
+                  .format(dev_f1, dev_prec, dev_rec))
     
-    train_preds = rnn.predict(train_x)
-    rnn.generate_submission(train_preds, train_x, id_to_class, filename='train_out')
+#    train_preds = rnn.predict(train_x, train_x_pos)
+#    rnn.generate_submission(train_preds, train_x, id_to_class, 
+#                            filename=(FILENAME + '.train'))
 
-    dev_preds = rnn.predict(dev_x)
-    rnn.generate_submission(dev_preds, dev_x, id_to_class, filename='dev_out')
+    dev_preds = rnn.predict(dev_x, dev_x_pos)
+    rnn.generate_submission(dev_preds, dev_x, id_to_class, 
+                            filename=(FILENAME + '.dev'))
 
-#    test_preds = rnn.predict(test_x)
-#    rnn.generate_submission(test_preds, test_x, id_to_class, filename=FILENAME)
+#    test_preds = rnn.predict(test_x, test_x_pos)
+#    rnn.generate_submission(test_preds, test_x, id_to_class, 
+#                            filename=(FILENAME + '.test'))
+
+
 
