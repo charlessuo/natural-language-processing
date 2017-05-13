@@ -13,14 +13,12 @@ class Loader:
         self.id_to_class = None
         self.id_to_pos = None
         self.max_len = 52
-        self.common_set = set()
 
     def load_data(self, mode):
         sentences, pos_tags, labels = self._build_raw_sentences(mode)
         # only build vocabulary with training data
         if mode == 'train':
             counts = self._build_count_dict(sentences)
-            self._build_buckets(counts)
             self._build_vocabs(counts, labels, pos_tags)
         x, pos, y = self._build_padded_data(mode, sentences, labels, pos_tags)
         return x, pos, y
@@ -72,24 +70,18 @@ class Loader:
                     counts[word] += 1
         return counts
 
-    def _build_buckets(self, counts):
-        for word, count in counts.items():
-            if count > 0:
-                self.common_set.add(word)
-
     def _build_vocabs(self, counts, labels, pos_tags):
         # build word-id mapping (frequent word has smaller index)
         sorted_items = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
-        id_to_word = {}
+        word_to_id = {}
         idx = 1
         for word, count in sorted_items:
-            if word in self.common_set:
-                id_to_word[idx] = word
+            if word not in word_to_id:
+                word_to_id[word] = idx
                 idx += 1
-
-        id_to_word[0] = '<PAD>'
-        id_to_word[idx] = '<UNK>'
-        word_to_id = {v: k for k, v in id_to_word.items()}
+        word_to_id['<PAD>'] = 0
+        word_to_id['<UNK>'] = idx
+        id_to_word = {v: k for k, v in word_to_id.items()}
         self.word_to_id = word_to_id
         self.id_to_word = id_to_word
         
@@ -118,7 +110,6 @@ class Loader:
         self.id_to_pos = id_to_pos
 
     def _build_padded_data(self, mode, sentences, labels_, pos_tags):
-        bucket_counts = {'common': 0, 'rare': 0, 'unk': 0}
         inputs = np.zeros((len(sentences), self.max_len)).astype(int)
         pos_inputs = np.zeros(inputs.shape).astype(int)
         labels = np.zeros(inputs.shape).astype(int)
@@ -126,11 +117,9 @@ class Loader:
             for j, word in enumerate(sentence):
                 if word in self.word_to_id:
                     inputs[i, j] = self.word_to_id[word]
-                    bucket_counts['common'] += 1
                 else:
                     inputs[i, j] = self.word_to_id['<UNK>']
-                    bucket_counts['unk'] += 1
-        print('Mode: {}, {}'.format(mode, bucket_counts))
+
         for i, _pos_tags in enumerate(pos_tags):
             for j, pos_tag in enumerate(_pos_tags):
                 if pos_tag in self.pos_to_id:
