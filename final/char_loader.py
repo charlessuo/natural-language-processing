@@ -8,7 +8,7 @@ class CharLoader:
         self.char_to_id = None
         self.id_to_char = None
         self.max_len = 52
-        self.char_len = 20
+        self.char_len = None
 
     def load_data(self, mode):
         sentences = self._build_raw_sentences(mode)
@@ -60,16 +60,17 @@ class CharLoader:
         id_to_char = {v: k for k, v in char_to_id.items()}
         self.char_to_id = char_to_id
         self.id_to_char = id_to_char
+        self.char_len = len(char_to_id)
 
     def _build_padded_data(self, sentences):
-        inputs = np.zeros((len(sentences), self.max_len, self.char_len)).astype(int)
+        inputs = np.zeros((len(sentences), self.max_len, self.char_len)).astype(float)
         for i, sentence in enumerate(sentences):
             for j, word in enumerate(sentence):
-                for k, char in enumerate(word[:self.char_len]):
+                for k, char in enumerate(word):
                     if char in self.char_to_id:
-                        inputs[i, j, k] = self.char_to_id[char]
+                        inputs[i, j, self.char_to_id[char]] += 1
                     else:
-                        inputs[i, j, k] = self.char_to_id['<UNK>']
+                        inputs[i, j, self.char_to_id['<UNK>']] += 1
         return inputs
 
 
@@ -78,6 +79,7 @@ if __name__ == '__main__':
     train_char = loader.load_data('train')
     dev_char = loader.load_data('dev')
     test_char = loader.load_data('test')
+    print('Char Length:', loader.char_len)
     print('Train tokens:', np.sum(train_char > 0))
     print('Train sentences:', len(train_char))
     print('Dev tokens:', np.sum(dev_char > 0))

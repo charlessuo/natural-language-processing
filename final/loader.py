@@ -1,6 +1,6 @@
 import numpy as np
 import nltk
-
+import time
 
 class Loader:
     def __init__(self):
@@ -138,10 +138,12 @@ class Loader:
 
 
 if __name__ == '__main__':
+    start = time.time()
     loader = Loader()
     train_x, train_x_pos, train_y = loader.load_data('train')
     dev_x, dev_x_pos, dev_y = loader.load_data('dev')
     test_x, test_x_pos, _ = loader.load_data('test')
+    print('Loading time: {:.2f}'.format(time.time() - start))
     print('Max length in training data:', loader.max_len)
     print('Train tokens:', np.sum(train_x > 0))
     print('Train sentences:', len(train_x))

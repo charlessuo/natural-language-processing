@@ -2,73 +2,57 @@
 import tensorflow as tf
 import numpy as np
 import logging
+import time
 from loader import Loader
 from orth_loader import OrthLoader
 from char_loader import CharLoader
 
 
-NUM_EPOCH       = 10
+NUM_EPOCH       = 12
 EMBED_SIZE      = 128
 POS_EMBED_SIZE  = 32
 ORTH_EMBED_SIZE = 32
-CHAR_EMBED_SIZE = 32
 CELL_SIZE       = 64
 BATCH_SIZE      = 32
 NUM_LAYERS      = 1
-FILTER_SIZE     = 3
-NUM_FILTERS     = 10
 
 FILENAME = 'sample'
-#FILENAME = 'bilstmcrf__embed{0}_pos{1}_cell{2}_layer{3}_ep{4}'.format(
-#               EMBED_SIZE, POS_EMBED_SIZE, CELL_SIZE, NUM_LAYERS, NUM_EPOCH)
+#FILENAME = 'bilstm_crf_embed{}_pos{}_orth{}_cell{}_layer{}_ep{}_v5'.format(
+#               EMBED_SIZE, POS_EMBED_SIZE, ORTH_EMBED_SIZE, CELL_SIZE, NUM_LAYERS, NUM_EPOCH)
 logging.basicConfig(filename='./logs/{}.log'.format(FILENAME), level=logging.DEBUG)
 
 
 class BiLSTM:
-    def __init__(self, vocab_size, pos_vocab_size, orth_vocab_size, char_vocab_size, num_classes, sentence_len, char_len,
-                 embed_size, pos_embed_size, orth_embed_size, char_embed_size, cell_size, num_layers):
+    def __init__(self, vocab_size, pos_vocab_size, orth_vocab_size, num_classes, sentence_len, char_len,
+                 embed_size, pos_embed_size, orth_embed_size, cell_size, num_layers):
 
         self.sess = tf.Session()
         self.inputs = tf.placeholder(tf.int32, [None, sentence_len], name='inputs')
         self.pos_inputs = tf.placeholder(tf.int32, [None, sentence_len], name='pos_inputs')
         self.orth_inputs = tf.placeholder(tf.int32, [None, sentence_len], name='orth_inputs')
-        self.char_inputs = tf.placeholder(tf.int32, [None, sentence_len, char_len], name='char_inputs')
+        self.char_inputs = tf.placeholder(tf.float32, [None, sentence_len, char_len], name='char_inputs')
         self.labels = tf.placeholder(tf.int32, [None, sentence_len], name='labels')
         self.seq_len = tf.reduce_sum(tf.cast(self.inputs > 0, tf.int32), axis=1)
         l2_loss = tf.constant(0.0)
 
         with tf.name_scope('word-embedding-layer'), tf.device('/cpu:0'):
-            self.embeddings = tf.Variable(tf.random_uniform([vocab_size, embed_size], -0.1, 0.1))
+            dim = np.sqrt(3.0 / embed_size)
+            self.embeddings = tf.Variable(tf.random_uniform([vocab_size, embed_size], -dim, dim))
             self.embedded_x = tf.nn.embedding_lookup(self.embeddings, self.inputs)
 
         with tf.name_scope('pos-embedding-layer'), tf.device('/cpu:0'):
-            self.embeddings = tf.Variable(tf.random_uniform([pos_vocab_size, pos_embed_size], -0.1, 0.1))
+            dim = np.sqrt(3.0 / pos_embed_size)
+            self.embeddings = tf.Variable(tf.random_uniform([pos_vocab_size, pos_embed_size], -dim, dim))
             self.embedded_pos = tf.nn.embedding_lookup(self.embeddings, self.pos_inputs)
 
         with tf.name_scope('orthographic-embedding-layer'), tf.device('/cpu:0'):
-            self.embeddings = tf.Variable(tf.random_uniform([orth_vocab_size, orth_embed_size], -0.1, 0.1))
+            dim = np.sqrt(3.0 / orth_embed_size)
+            self.embeddings = tf.Variable(tf.random_uniform([orth_vocab_size, orth_embed_size], -dim, dim))
             self.embedded_orth = tf.nn.embedding_lookup(self.embeddings, self.orth_inputs)
-#        '''
-        with tf.name_scope('char-embedding-layer'), tf.device('/cpu:0'):
-            self.embeddings = tf.Variable(tf.random_uniform([char_vocab_size, char_embed_size], -0.1, 0.1))
-            self.embedded_char = tf.nn.embedding_lookup(self.embeddings, self.char_inputs)
-
-        with tf.name_scope('char-level-conv-pool'):
-            embedded_char_ = tf.reshape(self.embedded_char, [-1, char_len, char_embed_size])
-            embedded_char_ = tf.expand_dims(embedded_char_, -1)
-            filter_size = FILTER_SIZE
-            num_filters = NUM_FILTERS
-            filter_shape = [filter_size, char_embed_size, 1, num_filters]
-            W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1))
-            b = tf.Variable(tf.constant(0.1, shape=[num_filters]))
-            conv = tf.nn.conv2d(embedded_char_, W, strides=[1, 1, 1, 1], padding='VALID')
-            h = tf.nn.sigmoid(conv + b)
-            pooled_ = tf.nn.max_pool(h, ksize=[1, char_len - filter_size + 1, 1, 1], strides=[1, 1, 1, 1], padding='VALID')
-            self.pooled = tf.reshape(pooled_, [-1, sentence_len, num_filters])
-#        '''
-        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth, self.pooled])
         
-#        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth])
+#        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth, self.char_inputs])
+        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth])
+
         with tf.name_scope('rnn-layer'):
             cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True)
             cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=1.0)
@@ -142,11 +126,11 @@ class BiLSTM:
             for batch_num in range(batches_per_epoch):
                 start_idx = batch_num * batch_size
                 end_idx = min((batch_num + 1) * batch_size, train_size)
-                batch_x = train_x[start_idx:end_idx]
-                batch_pos = train_pos[start_idx:end_idx]
-                batch_orth = train_orth[start_idx:end_idx]
-                batch_char = train_char[start_idx:end_idx]
-                batch_y = train_y[start_idx:end_idx]
+                batch_x = train_x[shuffle_idxs][start_idx:end_idx]
+                batch_pos = train_pos[shuffle_idxs][start_idx:end_idx]
+                batch_orth = train_orth[shuffle_idxs][start_idx:end_idx]
+                batch_char = train_char[shuffle_idxs][start_idx:end_idx]
+                batch_y = train_y[shuffle_idxs][start_idx:end_idx]
                 yield batch_x, batch_pos, batch_orth, batch_char, batch_y
 
     def predict(self, x, pos, orth, char):
@@ -223,22 +207,18 @@ if __name__ == '__main__':
     train_char = char_loader.load_data('train')
     dev_char = char_loader.load_data('dev')
     test_char = char_loader.load_data('test')
-    id_to_char = char_loader.id_to_char
     char_len = char_loader.char_len
-
     print('Done loading.')
 
     bilstm = BiLSTM(vocab_size=len(id_to_word), 
                     pos_vocab_size=len(id_to_pos),
                     orth_vocab_size=len(id_to_orth),
-                    char_vocab_size=len(id_to_char),
                     num_classes=len(id_to_class), 
                     sentence_len=max_len, 
                     char_len=char_len,
                     embed_size=EMBED_SIZE, 
                     pos_embed_size=POS_EMBED_SIZE,
                     orth_embed_size=ORTH_EMBED_SIZE,
-                    char_embed_size=CHAR_EMBED_SIZE,
                     cell_size=CELL_SIZE,
                     num_layers=NUM_LAYERS)
     bilstm.train(train_x, train_pos, train_orth, train_char, train_y, id_to_class, 
@@ -251,12 +231,15 @@ if __name__ == '__main__':
     logging.debug('[Dev]: F1 = {:.4f}, Prec = {:.4f}, Recall = {:.4f}'
                   .format(dev_f1, dev_prec, dev_rec))
 
+    print('Inferencing...')
+    start = time.time()
     dev_preds = bilstm.predict(dev_x, dev_pos, dev_orth, dev_char)
     bilstm.generate_submission(dev_preds, dev_x, id_to_class, 
                                filename=(FILENAME + '.dev'))
+    print('Done inferencing {} sentences in {:.2f} sec.'.format(len(dev_x), time.time() - start))
 
-#    test_preds = bilstm.predict(test_x, test_pos, test_orth, test_char)
-#    bilstm.generate_submission(test_preds, test_x, id_to_class, 
-#                               filename=(FILENAME + '.test'))
+    test_preds = bilstm.predict(test_x, test_pos, test_orth, test_char)
+    bilstm.generate_submission(test_preds, test_x, id_to_class, 
+                               filename=(FILENAME + '.test'))
 
 
