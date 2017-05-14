@@ -15,7 +15,7 @@ class OrthLoader:
         if mode == 'train':
             counts = self._build_count_dict(sentences)
             self._build_vocabs(counts)
-        x = self._build_padded_data(mode, sentences)
+        x = self._build_padded_data(sentences)
         return x
 
     def _build_raw_sentences(self, mode):
@@ -84,21 +84,14 @@ class OrthLoader:
         self.word_to_id = word_to_id
         self.id_to_word = id_to_word
 
-    def _build_padded_data(self, mode, sentences):
+    def _build_padded_data(self, sentences):
         inputs = np.zeros((len(sentences), self.max_len)).astype(int)
-        pos_inputs = np.zeros(inputs.shape).astype(int)
-        labels = np.zeros(inputs.shape).astype(int)
         for i, sentence in enumerate(sentences):
             for j, word in enumerate(sentence):
                 if word in self.word_to_id:
                     inputs[i, j] = self.word_to_id[word]
                 else:
                     inputs[i, j] = self.word_to_id['<UNK>']
-
-        # test mode only has inputs
-        if mode == 'test':
-            return inputs
-
         return inputs
 
 
@@ -106,13 +99,13 @@ if __name__ == '__main__':
     loader = OrthLoader()
     train_orth = loader.load_data('train')
     dev_orth = loader.load_data('dev')
-    test_otrh = loader.load_data('test')
+    test_orth = loader.load_data('test')
 #    print([loader.id_to_word[_] for _ in train_orth[0]])
     print('Max length in training data:', loader.max_len)
     print('Train tokens:', np.sum(train_orth > 0))
     print('Train sentences:', len(train_orth))
     print('Dev tokens:', np.sum(dev_orth > 0))
     print('Dev sentences:', len(dev_orth))
-    print('Test tokens:', np.sum(test_otrh > 0))
-    print('Test sentences:', len(test_otrh))
+    print('Test tokens:', np.sum(test_orth > 0))
+    print('Test sentences:', len(test_orth))
 
