@@ -50,8 +50,8 @@ class BiLSTM:
             self.embeddings = tf.Variable(tf.random_uniform([orth_vocab_size, orth_embed_size], -dim, dim))
             self.embedded_orth = tf.nn.embedding_lookup(self.embeddings, self.orth_inputs)
         
-#        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth, self.char_inputs])
-        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth])
+        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth, self.char_inputs])
+#        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth])
 
         with tf.name_scope('rnn-layer'):
             cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True)
@@ -152,8 +152,11 @@ class BiLSTM:
     def calculate_f1(self, x, pos, orth, char, y, id_to_class):
         logits, labels, seq_len, trans_params = \
             self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
-                           feed_dict={self.inputs: x, self.pos_inputs: pos, 
-                                      self.orth_inputs: orth, self.char_inputs: char, self.labels: y})
+                           feed_dict={self.inputs: x, 
+                                      self.pos_inputs: pos, 
+                                      self.orth_inputs: orth, 
+                                      self.char_inputs: char, 
+                                      self.labels: y})
         true_pos = 0
         false_pos = 0
         false_neg = 0        

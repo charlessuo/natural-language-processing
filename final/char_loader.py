@@ -32,7 +32,7 @@ class CharLoader:
                         sentence = []
                         continue
                     word, _ = line
-                    sentence.append(word)
+                    sentence.append(word.lower())
         elif mode == 'test':
             with open(self.test_path) as f:
                 sentence = []
@@ -43,7 +43,7 @@ class CharLoader:
                         sentence = []
                         continue
                     word = line
-                    sentence.append(word)
+                    sentence.append(word.lower())
         return sentences
 
     def _build_char_vocabs(self, sentences):
