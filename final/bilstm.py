@@ -81,14 +81,16 @@ class BiLSTM:
 
         with tf.name_scope('loss'):
             self.loss = tf.reduce_mean(-log_likelihood)
+#            self.loss += tf.nn.l2_loss(W)
+#            self.loss += tf.nn.l2_loss(b)
         
-    def train(self, train_x, train_pos, train_orth, train_char, train_y, id_to_class, num_epoch=3, batch_size=64):
+    def train(self, train_x, train_pos, train_orth, train_char, train_y, id_to_class, num_epoch, batch_size):
         # set optimizer
         optimizer = tf.train.AdamOptimizer(0.01)
 
         # clipping gradient
         tvars = tf.trainable_variables()
-        grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, tvars), 1)
+        grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, tvars), 5.0)
         train_op = optimizer.apply_gradients(zip(grads, tvars))
 
         self.sess.run(tf.global_variables_initializer())

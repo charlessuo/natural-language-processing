@@ -43,7 +43,7 @@ class Loader:
                         tags = []
                         continue
                     word, tag = line
-                    sentence.append(word)
+                    sentence.append(word.lower())
                     tags.append(tag)
         elif mode == 'test':
             with open(self.test_path) as f:
@@ -57,7 +57,7 @@ class Loader:
                         sentence = []
                         continue
                     word = line
-                    sentence.append(word)
+                    sentence.append(word.lower())
         return sentences, pos_tags, labels
 
     def _build_count_dict(self, sentences):
