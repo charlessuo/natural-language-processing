@@ -5,7 +5,6 @@ import logging
 import time
 from loader import Loader
 from orth_loader import OrthLoader
-from char_loader import CharLoader
 
 
 NUM_EPOCH       = 12
@@ -16,21 +15,19 @@ CELL_SIZE       = 64
 BATCH_SIZE      = 32
 NUM_LAYERS      = 1
 
-FILENAME = 'sample'
-#FILENAME = 'bilstm_crf_embed{}_pos{}_orth{}_cell{}_layer{}_ep{}_v5'.format(
-#               EMBED_SIZE, POS_EMBED_SIZE, ORTH_EMBED_SIZE, CELL_SIZE, NUM_LAYERS, NUM_EPOCH)
+FILENAME = 'bilstm_crf_embed{}_pos{}_orth{}_cell{}_layer{}_ep{}'.format(
+           EMBED_SIZE, POS_EMBED_SIZE, ORTH_EMBED_SIZE, CELL_SIZE, NUM_LAYERS, NUM_EPOCH)
 logging.basicConfig(filename='./logs/{}.log'.format(FILENAME), level=logging.DEBUG)
 
 
 class BiLSTM:
-    def __init__(self, vocab_size, pos_vocab_size, orth_vocab_size, num_classes, sentence_len, char_len,
+    def __init__(self, vocab_size, pos_vocab_size, orth_vocab_size, num_classes, sentence_len,
                  embed_size, pos_embed_size, orth_embed_size, cell_size, num_layers):
 
         self.sess = tf.Session()
         self.inputs = tf.placeholder(tf.int32, [None, sentence_len], name='inputs')
         self.pos_inputs = tf.placeholder(tf.int32, [None, sentence_len], name='pos_inputs')
         self.orth_inputs = tf.placeholder(tf.int32, [None, sentence_len], name='orth_inputs')
-        self.char_inputs = tf.placeholder(tf.float32, [None, sentence_len, char_len], name='char_inputs')
         self.labels = tf.placeholder(tf.int32, [None, sentence_len], name='labels')
         self.seq_len = tf.reduce_sum(tf.cast(self.inputs > 0, tf.int32), axis=1)
         l2_loss = tf.constant(0.0)
@@ -50,8 +47,7 @@ class BiLSTM:
             self.embeddings = tf.Variable(tf.random_uniform([orth_vocab_size, orth_embed_size], -dim, dim))
             self.embedded_orth = tf.nn.embedding_lookup(self.embeddings, self.orth_inputs)
         
-        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth, self.char_inputs])
-#        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth])
+        self.concat_input = tf.concat(2, [self.embedded_x, self.embedded_pos, self.embedded_orth])
 
         with tf.name_scope('rnn-layer'):
             cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True)
@@ -81,10 +77,8 @@ class BiLSTM:
 
         with tf.name_scope('loss'):
             self.loss = tf.reduce_mean(-log_likelihood)
-#            self.loss += tf.nn.l2_loss(W)
-#            self.loss += tf.nn.l2_loss(b)
         
-    def train(self, train_x, train_pos, train_orth, train_char, train_y, id_to_class, num_epoch, batch_size):
+    def train(self, train_x, train_pos, train_orth, train_y, id_to_class, num_epoch, batch_size):
         # set optimizer
         optimizer = tf.train.AdamOptimizer(0.01)
 
@@ -96,28 +90,27 @@ class BiLSTM:
         self.sess.run(tf.global_variables_initializer())
 
         # prepare batches to train on
-        batch_pairs = self._extract_batch(train_x, train_pos, train_orth, train_char, train_y, num_epoch, batch_size)
+        batch_pairs = self._extract_batch(train_x, train_pos, train_orth, train_y, num_epoch, batch_size)
         batches_per_epoch = int((len(train_x) - 1) / batch_size) + 1
         step = 0
 
         # start training 
         for batch in batch_pairs:
-            batch_x, batch_pos, batch_orth, batch_char, batch_y = batch
+            batch_x, batch_pos, batch_orth, batch_y = batch
             _, loss = self.sess.run([train_op, self.loss], 
                                     feed_dict={self.inputs: batch_x, 
                                                self.pos_inputs: batch_pos, 
                                                self.orth_inputs: batch_orth, 
-                                               self.char_inputs: batch_char, 
                                                self.labels: batch_y})
             if step % 20 == 0:
-                batch_f1, _, _ = self.calculate_f1(batch_x, batch_pos, batch_orth, batch_char, batch_y, id_to_class)
+                batch_f1, _, _ = self.calculate_f1(batch_x, batch_pos, batch_orth, batch_y, id_to_class)
                 print('[Batch]: Epoch: {}, Step: {}, loss: {:.6f}, F1: {:.4f}'.format(
                       int(step / batches_per_epoch), step, loss, batch_f1))
                 logging.debug('[Batch]: Epoch: {}, Step: {}, loss: {:.6f}, F1: {:.4f}'.format(
                               int(step / batches_per_epoch), step, loss, batch_f1))
             step += 1
 
-    def _extract_batch(self, train_x, train_pos, train_orth, train_char, train_y, num_epoch, batch_size):
+    def _extract_batch(self, train_x, train_pos, train_orth, train_y, num_epoch, batch_size):
         train_size = train_x.shape[0]
         batches_per_epoch = int((train_size - 1) / batch_size) + 1
 
@@ -131,14 +124,15 @@ class BiLSTM:
                 batch_x = train_x[shuffle_idxs][start_idx:end_idx]
                 batch_pos = train_pos[shuffle_idxs][start_idx:end_idx]
                 batch_orth = train_orth[shuffle_idxs][start_idx:end_idx]
-                batch_char = train_char[shuffle_idxs][start_idx:end_idx]
                 batch_y = train_y[shuffle_idxs][start_idx:end_idx]
-                yield batch_x, batch_pos, batch_orth, batch_char, batch_y
+                yield batch_x, batch_pos, batch_orth, batch_y
 
-    def predict(self, x, pos, orth, char):
+    def predict(self, x, pos, orth):
         logits, seq_len, trans_params = \
             self.sess.run([self.logits, self.seq_len, self.trans_params],
-                          feed_dict={self.inputs: x, self.pos_inputs: pos, self.orth_inputs: orth, self.char_inputs: char})
+                          feed_dict={self.inputs: x, 
+                                     self.pos_inputs: pos, 
+                                     self.orth_inputs: orth})
         N, sentence_len, _ = logits.shape
         preds = np.zeros((N, sentence_len))
         for i, logit_, length in zip(range(N), logits, seq_len):
@@ -149,14 +143,12 @@ class BiLSTM:
         preds = preds.astype(int)
         return preds
 
-    def calculate_f1(self, x, pos, orth, char, y, id_to_class):
+    def calculate_f1(self, x, pos, orth, y, id_to_class):
         logits, labels, seq_len, trans_params = \
-            self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
-                           feed_dict={self.inputs: x, 
-                                      self.pos_inputs: pos, 
-                                      self.orth_inputs: orth, 
-                                      self.char_inputs: char, 
-                                      self.labels: y})
+            self.sess.run([self.logits, self.labels, 
+                           self.seq_len, self.trans_params],
+                           feed_dict={self.inputs: x, self.pos_inputs: pos, 
+                                      self.orth_inputs: orth, self.labels: y})
         true_pos = 0
         false_pos = 0
         false_neg = 0        
@@ -207,12 +199,6 @@ if __name__ == '__main__':
     dev_orth = orth_loader.load_data('dev')
     test_orth = orth_loader.load_data('test')
     id_to_orth = orth_loader.id_to_word
-
-    char_loader = CharLoader()
-    train_char = char_loader.load_data('train')
-    dev_char = char_loader.load_data('dev')
-    test_char = char_loader.load_data('test')
-    char_len = char_loader.char_len
     print('Done loading.')
 
     bilstm = BiLSTM(vocab_size=len(id_to_word), 
@@ -220,16 +206,15 @@ if __name__ == '__main__':
                     orth_vocab_size=len(id_to_orth),
                     num_classes=len(id_to_class), 
                     sentence_len=max_len, 
-                    char_len=char_len,
                     embed_size=EMBED_SIZE, 
                     pos_embed_size=POS_EMBED_SIZE,
                     orth_embed_size=ORTH_EMBED_SIZE,
                     cell_size=CELL_SIZE,
                     num_layers=NUM_LAYERS)
-    bilstm.train(train_x, train_pos, train_orth, train_char, train_y, id_to_class, 
+    bilstm.train(train_x, train_pos, train_orth, train_y, id_to_class, 
                  num_epoch=NUM_EPOCH, batch_size=BATCH_SIZE)
     dev_f1, dev_prec, dev_rec = \
-        bilstm.calculate_f1(dev_x, dev_pos, dev_orth, dev_char, dev_y, id_to_class)
+        bilstm.calculate_f1(dev_x, dev_pos, dev_orth, dev_y, id_to_class)
 
     print('[Dev]: F1 = {:.4f}, Prec = {:.4f}, Recall = {:.4f}'
           .format(dev_f1, dev_prec, dev_rec))
@@ -238,12 +223,12 @@ if __name__ == '__main__':
 
     print('Inferencing...')
     start = time.time()
-    dev_preds = bilstm.predict(dev_x, dev_pos, dev_orth, dev_char)
+    dev_preds = bilstm.predict(dev_x, dev_pos, dev_orth)
     bilstm.generate_submission(dev_preds, dev_x, id_to_class, 
                                filename=(FILENAME + '.dev'))
     print('Done inferencing {} sentences in {:.2f} sec.'.format(len(dev_x), time.time() - start))
 
-    test_preds = bilstm.predict(test_x, test_pos, test_orth, test_char)
+    test_preds = bilstm.predict(test_x, test_pos, test_orth)
     bilstm.generate_submission(test_preds, test_x, id_to_class, 
                                filename=(FILENAME + '.test'))
 
