@@ -1,4 +1,4 @@
-# NLP Assignment 3
+# POS Tagging with Hidden Markov Model
 	
 ## Run HMM bi-gram model
 	python3 hmm_bigram.py

@@ -1,4 +1,4 @@
-# NLP Assignment 2
+# Training Skipgram Word Embedding
 
 ## Run:  
     python3 word2vec.py  

@@ -1,4 +1,4 @@
-# NLP Assignment 4
+# Tagging and Parsing with Neural Networks
 
 ## Run Bi-LSTM model
     python3 bilstm.py
