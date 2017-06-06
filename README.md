@@ -23,4 +23,4 @@ Model: Neural shift-reduce parser
 ## Named Entity Recognition
 Dataset: Twitter data
 
-Model: LSTM with CRF layer
+Model: CNN-LSTM
