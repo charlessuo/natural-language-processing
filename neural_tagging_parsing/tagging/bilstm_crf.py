@@ -9,34 +9,44 @@ logging.basicConfig(filename='./log/{}.log'.format(FILENAME), level=logging.DEBU
 
 
 class RNN:
-    def __init__(self, vocab_size, num_classes, sentence_len, embed_size, cell_size, num_layers):
+    def __init__(self, vocab_size, num_classes, sentence_len, 
+                 embed_size, cell_size, num_layers):
         self.sess = tf.Session()
         self.inputs = tf.placeholder(tf.int32, [None, sentence_len], name='inputs')
         self.labels = tf.placeholder(tf.int32, [None, sentence_len], name='labels')
+        self.dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
         self.seq_len = tf.reduce_sum(tf.cast(self.inputs > 0, tf.int32), axis=1)
 
         with tf.name_scope('embedding-layer'), tf.device('/cpu:0'):
-            self.embeddings = tf.Variable(tf.random_uniform([vocab_size, embed_size], -1.0, 1.0), name='embeddings')
-            self.embedded_x = tf.nn.embedding_lookup(self.embeddings, self.inputs, name='embedded_x')
+            epsilon = 1.0 / embed_size
+            self.embeddings = tf.Variable(
+                                  tf.random_uniform([vocab_size, embed_size], -epsilon, epsilon), 
+                                  name='embeddings')
+            self.embedded_x = tf.nn.embedding_lookup(
+                                  self.embeddings, 
+                                  self.inputs, 
+                                  name='embedded_x')
         
         with tf.name_scope('rnn-layer'):
             cell = tf.nn.rnn_cell.LSTMCell(cell_size, state_is_tuple=True)
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=1.0)
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=self.dropout_keep_prob)
             cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
-            outputs, states = tf.nn.bidirectional_dynamic_rnn(cell,
-                                                              cell,
-                                                              dtype=tf.float32,
-                                                              sequence_length=self.seq_len,
-                                                              inputs=self.embedded_x)
+            outputs, states = tf.nn.bidirectional_dynamic_rnn(
+                                  cell,
+                                  cell,
+                                  dtype=tf.float32,
+                                  sequence_length=self.seq_len,
+                                  inputs=self.embedded_x)
             self.rnn_output = tf.concat(2, outputs, name='rnn_output')
 
             # (N * sentence_len, 2 * cell_size)
             self.rnn_outputs_flat = tf.reshape(self.rnn_output, shape=[-1, 2 * cell_size])
 
         with tf.name_scope('output-layer'):
-            W = tf.Variable(tf.truncated_normal([2 * cell_size, num_classes], 
-                                                stddev=1.0 / np.sqrt(num_classes)), name='W')
-            b = tf.Variable(tf.zeros([num_classes]), name='b')
+            W = tf.Variable(tf.truncated_normal(
+                                [2 * cell_size, num_classes], 
+                                stddev=1.0 / np.sqrt(num_classes)))
+            b = tf.Variable(tf.zeros([num_classes]))
             
             # (N * sentence_len, num_classes)
             self.logits_flat = tf.matmul(self.rnn_outputs_flat, W) + b
@@ -48,7 +58,7 @@ class RNN:
         with tf.name_scope('loss'):
             self.loss = tf.reduce_mean(-log_likelihood)
         
-    def train(self, train_x, train_y, num_epoch=3, batch_size=64, tune_ratio=None):
+    def train(self, train_x, train_y, num_epoch, batch_size):
         # set optimizer
         optimizer = tf.train.AdamOptimizer(0.01)
 
@@ -60,70 +70,48 @@ class RNN:
         self.sess.run(tf.global_variables_initializer())
 
         # prepare batches to train on
-        batch_pairs = self._extract_batch(train_x, train_y, num_epoch, batch_size, tune_ratio, shuffle=True)
+        batch_pairs = self._extract_batch(train_x, train_y, num_epoch, batch_size)
         batches_per_epoch = int((len(train_x) - 1) / batch_size) + 1
         step = 0
-        tune_info = []
 
         # start training 
         for batch in batch_pairs:
-            batch_x, batch_y, tune_x, tune_y = batch
-            _, loss = self.sess.run([train_op, self.loss], 
-                                    feed_dict={self.inputs: batch_x, self.labels: batch_y})
+            batch_x, batch_y = batch
+            _, loss = self.sess.run([train_op, self.loss], feed_dict={
+                                                               self.inputs: batch_x, 
+                                                               self.labels: batch_y, 
+                                                               self.dropout_keep_prob: 0.5})
             if step % 10 == 0:
                 batch_acc = self.calculate_accuracy(batch_x, batch_y)
-                print('[Batch]: Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.4f}'.format(
-                      int(step / batches_per_epoch), step, loss, batch_acc))
-                logging.debug('[Batch]: Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.4f}'.format(
+                logging.debug('[Batch]: Epoch: {}, '
+                              'Step: {}, '
+                              'Loss: {:.6f}, '
+                              'Accuracy: {:.4f}'.format(
                               int(step / batches_per_epoch), step, loss, batch_acc))
-
-            if step % 100 == 0 and tune_x is not None and tune_y is not None:
-                tune_loss = self.sess.run(self.loss, feed_dict={self.inputs: tune_x, self.labels: tune_y})
-                tune_acc = self.calculate_accuracy(tune_x, tune_y)
-                print('[Tune]: Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.4f}'.format(
-                      int(step / batches_per_epoch), step, tune_loss, tune_acc))
-                logging.debug('[Tune]: Epoch: {}, Step: {}, loss: {:.6f}, accuracy: {:.4f}'.format(
-                              int(step / batches_per_epoch), step, tune_loss, tune_acc))
-                tune_info.append(tune_loss)
             step += 1
 
-    def _extract_batch(self, train_x, train_y, num_epoch, batch_size, tune_ratio, shuffle=True):
+    def _extract_batch(self, train_x, train_y, num_epoch, batch_size):
         data = np.hstack((train_x, train_y))
-        if tune_ratio:
-            tune_size = int(data.shape[0] * tune_ratio)
-        else:
-            tune_size = 0
-        train_size = data.shape[0] - tune_size
+        train_size = data.shape[0]
         batches_per_epoch = int((train_size - 1) / batch_size) + 1
 
         for epoch in range(num_epoch):
-            # extract tuning set
-            tune_idxs = np.random.choice(len(data), tune_size, replace=False)
-            if tune_ratio:
-                tune_x = data[tune_idxs][:, :train_x.shape[1]]
-                tune_y = data[tune_idxs][:, train_x.shape[1]:]
-            else:
-                tune_x = None
-                tune_y = None
-
             # shuffle and build batches with the reset
-            data_ = np.delete(data, tune_idxs, axis=0)
-            if shuffle:
-                shuffle_idxs = np.random.permutation(np.arange(train_size))
-                shuffled_data = data_[shuffle_idxs]
-            else:
-                shuffled_data = data_
+            shuffle_idxs = np.random.permutation(np.arange(train_size))
+            shuffled_data = data[shuffle_idxs]
 
             for batch_num in range(batches_per_epoch):
                 start_idx = batch_num * batch_size
                 end_idx = min((batch_num + 1) * batch_size, train_size)
                 batch_x = shuffled_data[start_idx:end_idx][:, :train_x.shape[1]]
                 batch_y = shuffled_data[start_idx:end_idx][:, train_x.shape[1]:]
-                yield batch_x, batch_y, tune_x, tune_y
+                yield batch_x, batch_y
 
     def predict(self, x):
-        logits, seq_len, trans_params = self.sess.run([self.logits, self.seq_len, self.trans_params],
-                                                      feed_dict={self.inputs: x})
+        logits, seq_len, trans_params = \
+            self.sess.run([self.logits, self.seq_len, self.trans_params],
+                          feed_dict={self.inputs: x, self.dropout_keep_prob: 1.0})
+
         N, sentence_len, _ = logits.shape
         preds = np.zeros((N, sentence_len))
         for i, logit_, length in zip(range(N), logits, seq_len):
@@ -134,8 +122,9 @@ class RNN:
         return preds.astype(int)
 
     def calculate_accuracy(self, x, y):
-        logits, labels, seq_len, trans_params = self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
-                                                              feed_dict={self.inputs: x, self.labels: y})
+        logits, labels, seq_len, trans_params = \
+            self.sess.run([self.logits, self.labels, self.seq_len, self.trans_params],
+                          feed_dict={self.inputs: x, self.labels: y, self.dropout_keep_prob: 1.0})
 
         num_correct = 0
         for logit_, y_, length in zip(logits, labels, seq_len):
@@ -147,7 +136,10 @@ class RNN:
         return num_correct / np.sum(seq_len)
 
     def generate_submission(self, test_preds, test_x, id_to_class, filename='submission'):
-        test_seq_len = self.sess.run(self.seq_len, feed_dict={self.inputs: test_x})
+        test_seq_len = self.sess.run(self.seq_len, feed_dict={
+                                                       self.inputs: test_x, 
+                                                       self.dropout_keep_prob: 1.0})
+
         with open('./results/' + filename + '.csv', 'w') as f:
             f.write('id,tag\n')
             idx = 0
@@ -173,7 +165,8 @@ if __name__ == '__main__':
               embed_size=100, 
               cell_size=128,
               num_layers=1)
-    rnn.train(train_x, train_y, num_epoch=3, batch_size=64, tune_ratio=None)
+
+    rnn.train(train_x, train_y, num_epoch=6, batch_size=64)
     dev_accuracy = rnn.calculate_accuracy(dev_x, dev_y)
     print('Dev accuracy:', dev_accuracy)
     logging.debug('Dev accuracy: {}'.format(dev_accuracy))
