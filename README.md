@@ -3,7 +3,7 @@
 ## Text Classification
 Dataset: 20 News Groups, Proper Names
 
-Model: Multi-Layer Perceptron
+Model: Multi-layer Perceptrons
 
 ## Word Embedding
 Dataset: Newswire Corpus
